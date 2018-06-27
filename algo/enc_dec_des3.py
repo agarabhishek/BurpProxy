@@ -1,9 +1,9 @@
-from Crypto.Cipher import AES
+from Crypto.Cipher import DES3
 from Padding import appendPadding,removePadding
 
-blocksize=16 # Blocksize is 16 in AES
+blocksize=8  #Blocksize is 8 in Triple DES or TDES
 
-# 3 AES Modes -CBC,EBC and CFB are handled.
+# 3 DES3 Modes -CBC,EBC and CFB are handled.
 # All padding modes are handled. The list is given below.
 
 # MODES ={
@@ -16,20 +16,40 @@ blocksize=16 # Blocksize is 16 in AES
 # }
 
 
-def aes_ecb_enc(key,plain_txt,mode):
+def des3_ecb_enc(key,plain_txt,mode):
 
-	#Encryption of AES-EBC
+	#Encryption for DES3-ECB
 	global blocksize
-	encryption_suite=AES.new(key,AES.MODE_EBC)
+	encryption_suite=DES3.new(key,DES3.MODE_ECB)
 	plain_txt_pad=appendPadding(plain_txt,blocksize=blocksize,mode=mode)
 	cph_txt=encryption_suite.encrypt(plain_txt_pad)
 	return cph_txt
 
-def aes_ecb_dec(key,cph_txt,mode):
+def des3_ecb_dec(key,cph_txt,mode):
 
-	#Decryption of AES-EBC
+	#Decryption for DES3-ECB
 	global blocksize
-	decryption_suite=AES.new(key,AES.MODE_EBC)
+	decryption_suite=DES3.new(key,DES3.MODE_ECB)
+	plain_txt_orig=decryption_suite.decrypt(cph_txt)
+	plain_txt=removePadding(plain_txt_orig,blocksize=blocksize,mode=mode)
+	return plain_txt
+
+
+
+def des3_cbc_enc(key,plain_txt,iv,mode):
+
+	#Encryption for DES3-CBC
+	global blocksize
+	encryption_suite=DES3.new(key,DES3.MODE_CBC,iv)
+	plain_txt_pad=appendPadding(plain_txt,blocksize=blocksize,mode=mode)
+	cph_txt=encryption_suite.encrypt(plain_txt_pad)
+	return cph_txt
+
+def des3_cbc_dec(key,cph_txt,iv,mode):
+
+	#Decryption for DES3-CBC
+	global blocksize
+	decryption_suite=DES3.new(key,DES3.MODE_CBC,iv)
 	plain_txt_orig=decryption_suite.decrypt(cph_txt)
 	plain_txt=removePadding(plain_txt_orig,blocksize=blocksize,mode=mode)
 	return plain_txt
@@ -37,47 +57,24 @@ def aes_ecb_dec(key,cph_txt,mode):
 
 
 
-def aes_cbc_enc(key,plain_txt,iv,mode):
+def des3_cfb_enc(key,plain_txt,iv,mode,segment_size):
 
-	#Encryption of AES-CBC
+	#Encryption for DES3-CFB
 	global blocksize
-	encryption_suite = AES.new(key,AES.MODE_CBC,iv)
-	plain_txt_pad=appendPadding(plain_txt, blocksize=blocksize, mode=mode)
-	cph_txt=encryption_suite.encrypt(plain_txt_pad)
-	return cph_txt
-
-def aes_cbc_dec(key,cph_txt,iv,mode):
-
-	# Decryption of AES-CBC
-	global blocksize
-	decryption_suite = AES.new(key, AES.MODE_CBC, iv)
-	plain_txt_orig = decryption_suite.decrypt(cph_txt)
-	plain_txt=removePadding(plain_txt_orig, blocksize=blocksize, mode=mode)
-	return plain_txt
-
-
-
-
-def aes_cfb_enc(key,plain_txt,iv,mode,segment_size):
-
-	#Encryption for AES-CFB
-	global blocksize
-	encryption_suite=AES.new(key,AES.MODE_CFB,iv,segment_size=segment_size)
+	encryption_suite=DES3.new(key,DES3.MODE_CFB,iv,segment_size=segment_size)
 	plain_txt_pad=appendPadding(plain_txt,blocksize=blocksize,mode=mode)
 	cph_txt=encryption_suite.encrypt(plain_txt_pad)
 	return cph_txt
 
+def des3_cfb_dec(key,cph_txt,iv,mode,segment_size):
 
-def aes_cfb_dec(key,cph_txt,iv,mode,segment_size):
-
-	#Decryption for AES-CFB
+	#Decryption for DES3-CFB
 	global blocksize
-	decryption_suite=AES.new(key,AES.MODE_CFB,iv,segment_size=segment_size)
+	decryption_suite=DES3.new(key,DES3.MODE_CFB,iv,segment_size=segment_size)
 	plain_txt_orig=decryption_suite.decrypt(cph_txt)
 	plain_txt=removePadding(plain_txt_orig,blocksize=blocksize,mode=mode)
 	return plain_txt
 
-	
 
 # There are 4 other modes. Have similar structure. Number of arguments may differ depending upon the mode.
 # Resource- https://www.dlitz.net/software/pycrypto/api/2.6/ 
