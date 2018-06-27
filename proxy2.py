@@ -1,5 +1,4 @@
 # -*- coding: utf-8 -*-
-#AA
 import sys
 import os
 import socket
@@ -46,22 +45,12 @@ class ProxyRequestHandler(BaseHTTPRequestHandler):
     certkey = join_with_script_dir('cert.key')
     certdir = join_with_script_dir('certs/')
     timeout = 5
-<<<<<<< HEAD
-
-    lock = threading.Lock() # Confirm, A locked thread is created so that no other process acquires it.
-
+    lock = threading.Lock()
 
     def __init__(self, *args, **kwargs):
         self.tls = threading.local()
         self.tls.conns = {}
 
-=======
-    lock = threading.Lock() # Confirm, A locked thread is created so that no other process acquires it.
-
-    def __init__(self, *args, **kwargs):
-        self.tls = threading.local()
-        self.tls.conns = {}
->>>>>>> 42eac66a8de075fddf7bd36474d6b5cc93cf1cb5
         BaseHTTPRequestHandler.__init__(self, *args, **kwargs)
 
     def log_error(self, format, *args):
@@ -71,34 +60,18 @@ class ProxyRequestHandler(BaseHTTPRequestHandler):
 
         self.log_message(format, *args)
 
-<<<<<<< HEAD
-
-    def do_CONNECT(self):#Will intercept if certificates present in path. Otherwise will relay.
-
-=======
-    def do_CONNECT(self):#Will intercept if certificates present in path. Otherwise will relay.
->>>>>>> 42eac66a8de075fddf7bd36474d6b5cc93cf1cb5
+    def do_CONNECT(self):
         if os.path.isfile(self.cakey) and os.path.isfile(self.cacert) and os.path.isfile(self.certkey) and os.path.isdir(self.certdir):
             self.connect_intercept()
         else:
             self.connect_relay()
-<<<<<<< HEAD
 
-=======
-  
->>>>>>> 42eac66a8de075fddf7bd36474d6b5cc93cf1cb5
     def connect_intercept(self):
         hostname = self.path.split(':')[0]
         certpath = "%s/%s.crt" % (self.certdir.rstrip('/'), hostname)
 
         with self.lock:
-<<<<<<< HEAD
-
-            if not os.path.isfile(certpath):#Creating new certificate for each https site we visit
-
-=======
-            if not os.path.isfile(certpath):#Creating new certificate for each https site we visit
->>>>>>> 42eac66a8de075fddf7bd36474d6b5cc93cf1cb5
+            if not os.path.isfile(certpath):
                 epoch = "%d" % (time.time() * 1000)
                 p1 = Popen(["openssl", "req", "-new", "-key", self.certkey, "-subj", "/CN=%s" % hostname], stdout=PIPE)
                 p2 = Popen(["openssl", "x509", "-req", "-days", "3650", "-CA", self.cacert, "-CAkey", self.cakey, "-set_serial", epoch, "-out", certpath], stdin=p1.stdout, stderr=PIPE)
@@ -107,11 +80,6 @@ class ProxyRequestHandler(BaseHTTPRequestHandler):
         self.wfile.write("%s %d %s\r\n" % (self.protocol_version, 200, 'Connection Established'))
         self.end_headers()
 
-        #Wrapping an existing socket and return an SSL Socket Object.
-<<<<<<< HEAD
-
-=======
->>>>>>> 42eac66a8de075fddf7bd36474d6b5cc93cf1cb5
         self.connection = ssl.wrap_socket(self.connection, keyfile=self.certkey, certfile=certpath, server_side=True)
         self.rfile = self.connection.makefile("rb", self.rbufsize)
         self.wfile = self.connection.makefile("wb", self.wbufsize)
@@ -171,27 +139,11 @@ class ProxyRequestHandler(BaseHTTPRequestHandler):
             req.headers['Content-length'] = str(len(req_body))
 
         u = urlparse.urlsplit(req.path)
-<<<<<<< HEAD
-
-        # u is like this- ( All components are separated )
-        # SplitResult(scheme='https', netloc='duckduckgo.com', path='/', query='q=get+urlsplit+for+python&t=ffab&atb=v118-4&ia=qa', fragment='')
-        # path is webpage on a website.
-
-=======
-        # u is like this- ( All components are separated )
-        # SplitResult(scheme='https', netloc='duckduckgo.com', path='/', query='q=get+urlsplit+for+python&t=ffab&atb=v118-4&ia=qa', fragment='')
-        # path is webpage on a website.
->>>>>>> 42eac66a8de075fddf7bd36474d6b5cc93cf1cb5
         scheme, netloc, path = u.scheme, u.netloc, (u.path + '?' + u.query if u.query else u.path)
         assert scheme in ('http', 'https')
         if netloc:
             req.headers['Host'] = netloc
         setattr(req, 'headers', self.filter_headers(req.headers))
-<<<<<<< HEAD
-
-=======
->>>>>>> 42eac66a8de075fddf7bd36474d6b5cc93cf1cb5
-        # Confirm what filter_headers and request_handlers do
 
         try:
             origin = (scheme, netloc)
@@ -204,24 +156,11 @@ class ProxyRequestHandler(BaseHTTPRequestHandler):
             conn.request(self.command, path, req_body, dict(req.headers))
             res = conn.getresponse()
 
-<<<<<<< HEAD
-
-            # Now response is formed. Headers and Version are set.
-
-=======
-            # Now response is formed. Headers and Version are set.
->>>>>>> 42eac66a8de075fddf7bd36474d6b5cc93cf1cb5
             version_table = {10: 'HTTP/1.0', 11: 'HTTP/1.1'}
             setattr(res, 'headers', res.msg)
             setattr(res, 'response_version', version_table[res.version])
 
-<<<<<<< HEAD
-
-            #support streaming. Now the response formed is sent back.
-
-=======
-            #support streaming. Now the response formed is sent back.
->>>>>>> 42eac66a8de075fddf7bd36474d6b5cc93cf1cb5
+            # support streaming
             if not 'Content-Length' in res.headers and 'no-store' in res.headers.get('Cache-Control', ''):
                 self.response_handler(req, req_body, res, '')
                 setattr(res, 'headers', self.filter_headers(res.headers))
@@ -229,54 +168,38 @@ class ProxyRequestHandler(BaseHTTPRequestHandler):
                 with self.lock:
                     self.save_handler(req, req_body, res, '')
                 return
-<<<<<<< HEAD
 
-            # Actual html data returned from the webpage is stored in res_body.
-
-=======
-            # Actual html data returned from the webpage is stored in res_body.
->>>>>>> 42eac66a8de075fddf7bd36474d6b5cc93cf1cb5
             res_body = res.read()
         except Exception as e:
             if origin in self.tls.conns:
                 del self.tls.conns[origin]
-<<<<<<< HEAD
-
-=======
->>>>>>> 42eac66a8de075fddf7bd36474d6b5cc93cf1cb5
-                # Deleting transaction and sending error response back.
             self.send_error(502)
             return
 
-        content_encoding = res.headers.get('Content-Encoding', 'identity') # Identity, gzip, deflate etc
-        res_body_plain = self.decode_content_body(res_body, content_encoding) # Decoding accoriding to encoding.
+        content_encoding = res.headers.get('Content-Encoding', 'identity')
+        res_body_plain = self.decode_content_body(res_body, content_encoding)
 
-        res_body_modified = self.response_handler(req, req_body, res, res_body_plain) #Just passes for now. This can be customized to modify the response before sending it to client.
-        #Hence for now, For now, res_body_modified is same as res_body_plain
-        if res_body_modified is False: 
+        res_body_modified = self.response_handler(req, req_body, res, res_body_plain)
+        if res_body_modified is False:
             self.send_error(403)
             return
         elif res_body_modified is not None:
-            res_body_plain = res_body_modified 
-            res_body = self.encode_content_body(res_body_plain, content_encoding) #Encode the body again.
-            res.headers['Content-Length'] = str(len(res_body)) # Set the Content-Length of response.
+            res_body_plain = res_body_modified
+            res_body = self.encode_content_body(res_body_plain, content_encoding)
+            res.headers['Content-Length'] = str(len(res_body))
 
-        setattr(res, 'headers', self.filter_headers(res.headers)) # Setting the headers
+        setattr(res, 'headers', self.filter_headers(res.headers))
 
-        self.wfile.write("%s %d %s\r\n" % (self.protocol_version, res.status, res.reason)) # Writing the protocol, Status and Reason
+        self.wfile.write("%s %d %s\r\n" % (self.protocol_version, res.status, res.reason))
         for line in res.headers.headers:
             self.wfile.write(line)
         self.end_headers()
-        self.wfile.write(res_body) 
+        self.wfile.write(res_body)
         self.wfile.flush()
 
-        with self.lock: #Data in that locked thread;
-            self.save_handler(req, req_body, res, res_body_plain) # This prints data (Request and Response) on server screen. Interception Data.
+        with self.lock:
+            self.save_handler(req, req_body, res, res_body_plain)
 
-<<<<<<< HEAD
-
-=======
->>>>>>> 42eac66a8de075fddf7bd36474d6b5cc93cf1cb5
     def relay_streaming(self, res):
         self.wfile.write("%s %d %s\r\n" % (self.protocol_version, res.status, res.reason))
         for line in res.headers.headers:
@@ -292,13 +215,7 @@ class ProxyRequestHandler(BaseHTTPRequestHandler):
         except socket.error:
             # connection closed by client
             pass
-<<<<<<< HEAD
 
-    ## Confirm this, The server is converting every request to GET request.
-
-=======
-    ## Confirm this, The server is converting every request to GET request.
->>>>>>> 42eac66a8de075fddf7bd36474d6b5cc93cf1cb5
     do_HEAD = do_GET
     do_POST = do_GET
     do_PUT = do_GET
@@ -307,20 +224,10 @@ class ProxyRequestHandler(BaseHTTPRequestHandler):
 
     def filter_headers(self, headers):
         # http://tools.ietf.org/html/rfc2616#section-13.5.1
-<<<<<<< HEAD
+        hop_by_hop = ('connection', 'keep-alive', 'proxy-authenticate', 'proxy-authorization', 'te', 'trailers', 'transfer-encoding', 'upgrade')
+        for k in hop_by_hop:
+            del headers[k]
 
-=======
->>>>>>> 42eac66a8de075fddf7bd36474d6b5cc93cf1cb5
-        
-        # hop_by_hop = ('connection', 'keep-alive', 'proxy-authenticate', 'proxy-authorization', 'te', 'trailers', 'transfer-encoding', 'upgrade')
-        # for k in hop_by_hop:
-        #     del headers[k]
-        pass
-
-<<<<<<< HEAD
-
-=======
->>>>>>> 42eac66a8de075fddf7bd36474d6b5cc93cf1cb5
         # accept only supported encodings
         if 'Accept-Encoding' in headers:
             ae = headers['Accept-Encoding']
@@ -464,12 +371,7 @@ def test(HandlerClass=ProxyRequestHandler, ServerClass=ThreadingHTTPServer, prot
     if sys.argv[1:]:
         port = int(sys.argv[1])
     else:
-<<<<<<< HEAD
-
-=======
->>>>>>> 42eac66a8de075fddf7bd36474d6b5cc93cf1cb5
-        port = 8081
-
+        port = 8080
     server_address = ('::1', port)
 
     HandlerClass.protocol_version = protocol
