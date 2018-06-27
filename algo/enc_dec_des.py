@@ -1,7 +1,7 @@
 from Crypto.Cipher import DES
 from Padding import appendPadding,removePadding
 
-blocksize=8  #Blocksize is 8 bytes in DES3
+blocksize=8  #Blocksize is 8 bytes in DES
 #Key size is always 8 bytes(Blocksize).
 #IV is usually Blocksize long. Except for OpenPGP Mode.
 #segment_size is used only in CFB Mode. It must be a multiple of 8. If 0 or not specified, it will be assumed to be 8.
