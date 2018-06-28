@@ -13,11 +13,11 @@ def URLDec(msg):
 
 #Function to Base64 Encode. Converts to standard base 64 characters.
 def Base64Enc(msg):
-	return base64.standard_b64encode(msg)
+	return base64.b64encode(msg)
 
 #Function to Base64 Decode. Converts from standard base 64 characters to ASCII.
 def Base64Dec(msg):
-	return base64.standard_b64decode(msg)
+	return base64.b64decode(msg)
 
 #Function to ASCII Hex Encode. Entire message(characters+digits) are encoded to hex.
 def AsciiHexEnc(msg):

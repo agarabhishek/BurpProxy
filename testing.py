@@ -17,6 +17,9 @@ from SocketServer import ThreadingMixIn
 from cStringIO import StringIO
 from subprocess import Popen, PIPE
 from HTMLParser import HTMLParser
+import enc_dec_aes
+import enco_deco
+import base64
 
 
 def with_color(c, s):
@@ -162,7 +165,7 @@ class ProxyRequestHandler(BaseHTTPRequestHandler):
 
             # support streaming
             if not 'Content-Length' in res.headers and 'no-store' in res.headers.get('Cache-Control', ''):
-                self.response_handler(req, req_body, res, '')
+                self.response_handler(res, res_body)
                 setattr(res, 'headers', self.filter_headers(res.headers))
                 self.relay_streaming(res)
                 with self.lock:
@@ -179,7 +182,7 @@ class ProxyRequestHandler(BaseHTTPRequestHandler):
         content_encoding = res.headers.get('Content-Encoding', 'identity')
         res_body_plain = self.decode_content_body(res_body, content_encoding)
 
-        res_body_modified = self.response_handler(req, req_body, res, res_body_plain)
+        res_body_modified = self.response_handler(res,res_body_plain)
         if res_body_modified is False:
             self.send_error(403)
             return
@@ -357,11 +360,57 @@ class ProxyRequestHandler(BaseHTTPRequestHandler):
             if res_body_text:
                 print with_color(32, "==== RESPONSE BODY ====\n%s\n" % res_body_text)
 
+
+    def get_res_body_text(self,res,res_body):
+        if res_body is not None:
+            res_body_text = None
+            content_type = res.headers.get('Content-Type', '')
+
+            if content_type.startswith('application/json'):
+                try:
+                    json_obj = json.loads(res_body)
+    
+                    if json_str.count('\n') < 50:
+                        res_body_text = json_str
+                    else:
+                        lines = json_str.splitlines()
+                        res_body_text = "%s\n(%d lines)" % ('\n'.join(lines[:50]), len(lines))
+                except ValueError:
+                    res_body_text = res_body
+            elif content_type.startswith('text/html'):
+                m = re.search(r'<title[^>]*>\s*([^<]+?)\s*</title>', res_body, re.I)
+                if m:
+                    h = HTMLParser()
+                    print with_color(32, "==== HTML TITLE ====\n%s\n" % h.unescape(m.group(1).decode('utf-8')))
+            elif content_type.startswith('text/') and len(res_body) < 1024:
+                res_body_text = res_body
+        return res_body_text
+
     def request_handler(self, req, req_body):
         pass
 
-    def response_handler(self, req, req_body, res, res_body):
-        pass
+    def response_handler(self, res ,res_body):
+        #key="441538f57b510c0512f594c213cc523c"
+        res_body_text=self.get_res_body_text(res,res_body)
+        print("The response is printed below-")
+        print(res_body_text)
+        print("")
+        choice=0
+        while (choice !=1 or choice !=2)
+        choice=input("Select what part of response you want to decrypt \n 1) Whole \n 2)Partly")   
+        if choice==1:
+            dmode=input("Enter Decryption Mode")
+            dkey=input("Enter Decryption Key")
+            mode=input("Enter Padding Mode")
+
+        elif choice==2:
+            dmode=input("Enter Decryption Mode")
+            dkey=input("Enter Decryption Key")
+            mode=input("Enter Padding Mode")
+
+        # cph_txt=res_body_text
+        # cph_txt_deco=base64.b64decode(cph_txt)
+        # res_body_text= enc_dec_aes.aes_cbc_dec(key,cph_txt_deco[16:],cph_txt_deco[0:16],"CMS")
 
     def save_handler(self, req, req_body, res, res_body):
         self.print_info(req, req_body, res, res_body)
@@ -371,7 +420,7 @@ def test(HandlerClass=ProxyRequestHandler, ServerClass=ThreadingHTTPServer, prot
     if sys.argv[1:]:
         port = int(sys.argv[1])
     else:
-        port = 4444
+        port = 5555
     server_address = ('::1', port)
 
     HandlerClass.protocol_version = protocol

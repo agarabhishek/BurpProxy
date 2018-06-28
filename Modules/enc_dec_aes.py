@@ -1,6 +1,7 @@
 from Crypto.Cipher import AES
 from Padding import appendPadding,removePadding
 
+
 blocksize=16  #Blocksize is 16,24 or 32 bytes in AES
 #Key size is always 8 bytes(Blocksize).
 #IV is usually Blocksize long. Except for OpenPGP Mode.
