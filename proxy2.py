@@ -120,6 +120,7 @@ class ProxyRequestHandler(BaseHTTPRequestHandler):
                     break
                 other.sendall(data)
 
+    #Function to receive/send requests/responses and modify them.
     def do_GET(self):
         if self.path == 'http://proxy2.test/':
             self.send_cacert()
@@ -195,6 +196,7 @@ class ProxyRequestHandler(BaseHTTPRequestHandler):
 
         setattr(res, 'headers', self.filter_headers(res.headers))
 
+        #Sends responses
         self.wfile.write("%s %d %s\r\n" % (self.protocol_version, res.status, res.reason))
         for line in res.headers.headers:
             self.wfile.write(line)
@@ -203,8 +205,10 @@ class ProxyRequestHandler(BaseHTTPRequestHandler):
         self.wfile.flush()
 
         with self.lock:
+            #Prints the final state of response and requests
             self.save_handler(req, req_body, res, res_body_plain)
 
+    #Function to send responses 
     def relay_streaming(self, res):
         self.wfile.write("%s %d %s\r\n" % (self.protocol_version, res.status, res.reason))
         for line in res.headers.headers:
