@@ -593,7 +593,7 @@ class ProxyRequestHandler(BaseHTTPRequestHandler):
             print colored("Enter Encoding type.(Base64Dec/AsciiHexDec/BinDec/OctDec/HexDec)","green")
             dencod=raw_input()
             #Forming Decoding Fucnction. dencod is the final function to be called for decoding.
-            dencod="enco_deco."+dencod
+            dencod="EncDec."+dencod
             return dencod
 
     def get_iv_info(self,decryption_final,block):
