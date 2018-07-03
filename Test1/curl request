@@ -1,0 +1,1 @@
+curl -g -6 -x "http://192.168.0.177:9999/" -d '{"Request":"yXSigamz0yTn5Ss9Gbza0g7iSKC1so39Myu5ku9uloM/8oXGWBYYlcOJtKfsQP2Ns19voVq9ofbS\n0pTOf1TVpS3OxBUo6XN63lLTue0FEA4="}' -H "Content-Type: application/json" -X POST http://fglpg001.futuregenerali.in/LF.MB.CancerCareToken/api/Login/AgentLoginCredential_V3
