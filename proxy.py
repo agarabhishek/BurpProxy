@@ -17,12 +17,14 @@ from SocketServer import ThreadingMixIn
 from cStringIO import StringIO
 from subprocess import Popen, PIPE
 from HTMLParser import HTMLParser
-import enc_dec_aes
-import enco_deco
 import base64
 from termcolor import colored
 import traceback
-
+sys.path.insert(0, './Modules')
+import enc_dec_aes
+import enc_dec_des
+import enc_dec_des3
+import EncDec
 
 def with_color(c, s):
     return "\x1b[%dm%s\x1b[0m" % (c, s)
@@ -455,6 +457,17 @@ class ProxyRequestHandler(BaseHTTPRequestHandler):
 
     #This function will be called if reponse is of json type
     def response_is_json(self,res,res_body):
+        # Parameters-Map
+        # decryption_final= Name of decryption function
+        # block= Block size in the decryption function
+        # dkey= Decryption Key
+        # Mode= Padding Mode
+        # dencod= Name of Decoding function
+        # iv_info= Info about position of IV or in some cases IV itself
+        # seg_size= Segment Sizem which is required in modes like CFB
+        # ct= Cipher Text (Data) to be decrypted
+        # decoded_value= The decoded string
+        # iv = Actual IV (decoded) that will be used for decryption.
 
             #The response is of Json Type, so now we will ask for required parameters.
             print colored("The response is of json/dictionary\n","green")
@@ -591,6 +604,19 @@ class ProxyRequestHandler(BaseHTTPRequestHandler):
 
 
     def response_custom(self,res,res_body_text):
+        # Parameters-Map
+        # decryption_final= Name of decryption function
+        # block= Block size in the decryption function
+        # dkey= Decryption Key
+        # Mode= Padding Mode
+        # dencod= Name of Decoding function
+        # iv_info= Info about position of IV or in some cases IV itself
+        # seg_size= Segment Sizem which is required in modes like CFB
+        # ct= Cipher Text (Data) to be decrypted
+        # decoded_value= The decoded string
+        # iv = Actual IV (decoded) that will be used for decryption.
+
+
         #This function will handle non json type responses.
         print colored("\nThe Content Type is "+res.headers.get('Content-Type', ''),"green")
         file = open("response.txt","w")
@@ -602,9 +628,11 @@ class ProxyRequestHandler(BaseHTTPRequestHandler):
         print colored("Press 1 to start decryption. Press 2 to Exit")
         ext=raw_input()
         while ext==str(1):
+            #Asking if all words to be decrypted have same decryption suite.
             print colored("Do all words to be decrypted have same parameters- Decryption Function, Mode, Paddding. (y or n)","green")
             ans=raw_input()
             if ans=='y':
+                #Fetching all required parameters that will be required later.
                 decryption_info=self.get_decryption_function()
                 decryption_final=decryption_info[0]
                 block=decryption_info[1]
@@ -618,15 +646,13 @@ class ProxyRequestHandler(BaseHTTPRequestHandler):
                     iv_info=self.get_iv_info(decryption_final,block)
                     seg_size=raw_input("Enter Segment Size. Must be iv_info multiple of 8. If left blank, then 8 will be taken by default") if "cfb" in decryption_final else None
                     decoded_value=eval(dencod)(word)
-                    print(len(decoded_value))
                     if iv_info is not None:
                         if iv_info=='beg' or iv_info=='end':
                             #Extracting IV from Cipher Text
                             iv=decoded_value[0:block] if iv_info=='beg' else decoded_value[-block:]
                             ct=decoded_value[16:] if iv_info =='beg' else decoded_value[0:len(decoded_value)-block]
-                            print(len(iv))
-                            print(len(ct))
                         else: 
+                            #In this case, iv was manually entered by user.
                             iv=iv_info
                             ct=decoded_value
                         value=eval(decryption_final)(dkey,ct,iv,mode) if seg_size == None else eval(decryption_final)(dkey,ct,iv,mode,seg_size)
@@ -640,6 +666,7 @@ class ProxyRequestHandler(BaseHTTPRequestHandler):
                 if ext=='2':
                     break
             else:
+                #Here all words will have different decryption suite. So each time a word is inputted, new parameters will be asked.
                 while ext=='1':
                     print colored("Enter word to be decrypted","green")
                     word=raw_input()
@@ -658,7 +685,8 @@ class ProxyRequestHandler(BaseHTTPRequestHandler):
                             #Extracting IV from Cipher Text
                             iv=decoded_value[0:block] if iv_info=='beg' else decoded_value[-block:]
                             ct=decoded_value[16:] if iv_info =='beg' else decoded_value[0:len(decoded_value)-block]
-                        else: 
+                        else:
+                            #In this case, IV was manually entered by user.
                             iv=iv_info
                             ct=decoded_value
                         value=eval(decryption_final)(dkey,ct,iv,mode) if seg_size == None else eval(decryption_final)(dkey,ct,iv,mode,seg_size)
@@ -671,7 +699,7 @@ class ProxyRequestHandler(BaseHTTPRequestHandler):
                     ext=raw_input()
                 if ext=='2':
                     break
-        print("Please save all changes in response.txt. Press 3 when done")
+        print colored("Please save all changes in response.txt. Press 3 when done","green")
         final=raw_input()
         if final=='3':
             file=open("response.txt","r")
@@ -688,7 +716,7 @@ class ProxyRequestHandler(BaseHTTPRequestHandler):
         response_list=self.get_res_body_text(res,res_body)
         res_body_text=response_list[0]
         type_res=response_list[1]
-        print("\n-------------------------------------------------")
+        print colored("\n-------------------------------------------------","green")
         print colored("The response is printed below-",'green')
         print(res_body_text)
         print("")
