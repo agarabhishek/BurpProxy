@@ -17,7 +17,6 @@ from SocketServer import ThreadingMixIn
 from cStringIO import StringIO
 from subprocess import Popen, PIPE
 from HTMLParser import HTMLParser
-sys.path.insert(0,'./Modules')
 import EncDec 
 import enc_dec_aes 
 import enc_dec_des 

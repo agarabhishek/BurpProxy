@@ -17,12 +17,7 @@ from SocketServer import ThreadingMixIn
 from cStringIO import StringIO
 from subprocess import Popen, PIPE
 from HTMLParser import HTMLParser
-sys.path.insert(0,'./Modules')
-import EncDec 
-import enc_dec_aes 
-import enc_dec_des 
-import enc_dec_des3 
-import traceback
+
 
 def with_color(c, s):
     return "\x1b[%dm%s\x1b[0m" % (c, s)
@@ -227,7 +222,6 @@ class ProxyRequestHandler(BaseHTTPRequestHandler):
     do_DELETE = do_GET
     do_OPTIONS = do_GET
 
-    #Function to filter headers. 
     def filter_headers(self, headers):
         # http://tools.ietf.org/html/rfc2616#section-13.5.1
         hop_by_hop = ('connection', 'keep-alive', 'proxy-authenticate', 'proxy-authorization', 'te', 'trailers', 'transfer-encoding', 'upgrade')
@@ -242,14 +236,13 @@ class ProxyRequestHandler(BaseHTTPRequestHandler):
 
         return headers
 
-    #Function to encode body content if specified in the header
     def encode_content_body(self, text, encoding):
         if encoding == 'identity':
             data = text
         elif encoding in ('gzip', 'x-gzip'):
             io = StringIO()
             with gzip.GzipFile(fileobj=io, mode='wb') as f:
-                f.write(text)            
+                f.write(text)
             data = io.getvalue()
         elif encoding == 'deflate':
             data = zlib.compress(text)
@@ -257,7 +250,6 @@ class ProxyRequestHandler(BaseHTTPRequestHandler):
             raise Exception("Unknown Content-Encoding: %s" % encoding)
         return data
 
-    #Function to decode body content if specified in the header
     def decode_content_body(self, data, encoding):
         if encoding == 'identity':
             text = data
@@ -285,7 +277,6 @@ class ProxyRequestHandler(BaseHTTPRequestHandler):
         self.end_headers()
         self.wfile.write(data)
 
-    #Function to print request and responses
     def print_info(self, req, req_body, res, res_body):
         def parse_qsl(s):
             return '\n'.join("%-20s %s" % (k, v) for k, v in urlparse.parse_qsl(s, keep_blank_values=True))
@@ -326,7 +317,6 @@ class ProxyRequestHandler(BaseHTTPRequestHandler):
                         lines = json_str.splitlines()
                         req_body_text = "%s\n(%d lines)" % ('\n'.join(lines[:50]), len(lines))
                 except ValueError:
-                    print "poppppppp"
                     req_body_text = req_body
             elif len(req_body) < 1024:
                 req_body_text = req_body
@@ -367,186 +357,21 @@ class ProxyRequestHandler(BaseHTTPRequestHandler):
             if res_body_text:
                 print with_color(32, "==== RESPONSE BODY ====\n%s\n" % res_body_text)
 
-    #Input details required for Encryption of requests
-    def inputDetails(self):
-        cipMethod = raw_input("Encryption Method- AES/DES/DES3: ") 
-        key = raw_input("Key: ")
-        mode =raw_input("mode: ECB/CBC/CFB: ")
-        #ivs,iv = self.extractIV() if mode not in 'ECB' else None
-        ivNum = raw_input("IV is entered once for all keywords(1) or to be extracted with every block(2): ")
-        segment_size = self.getSegmentSize() if mode == 'CFB' else None
-        padding = raw_input("Padding format: Bit, CMS, ZeroLen, Null, ISO, Random,None: ")
-        mode_enco =raw_input("Mode of Encoding: Base64/AsciiHex/Bin/Oct/Hex/URL: ")
-        mode_enco = "EncDec." + mode_enco + "Enc"
-        mxen=raw_input("Mode of Encryption: Full request body(1) or parameters(2): ")
-        return cipMethod,key,mode, ivNum, segment_size, str(padding), mode_enco, mxen
-
-    #Function to extract IV
-    def extractIV(self, req_body,mode_enco):
-        ivs = raw_input("IV: Starting(1) or Ending(2): ")
-        #For obtaining IV from Suraksha-
-        #'.' is to be added to the request body to separate IV encoded block and decrypted message
-        identifier = '.'
-        iv = req_body.split(identifier)[0]
-        iv = EncDec.Base64Dec(iv)
-        print iv
-        print type(iv)
-        return ivs,iv
-
-    #Function to extract text to encrypt
-    def getBodyEnc(self, requestString):
-        #For Suraksha app-
-        identifier = '.'
-        return requestString.split(identifier)[1]
-
-    #Function to obtain segment size for Encryption
-    def getSegmentSize():
-        seg_size = raw_input("Segment Size(0 if does not exist): ")
-        return seg_size
-
     def request_handler(self, req, req_body):
-        print req_body
-        #Input of parameters. ivNum contains the number of IVs in the request. If different parameters
-        #contain different IV, then obtained while encryption
-        cipMethod,key,mode, ivNum, segment_size, padding, mode_enco, mxen = self.inputDetails()
-        print type(padding)
-        ivs,iv = self.extractIV(req_body,mode_enco) if ivNum == '1' else None,None
-
-
-        #Encryption of full request body:
-        if (int(mxen)==1):
-            if (ivs == '1'):
-                req_body=self.encr(cipMethod, req_body, key, padding, iv,mode, segment_size)
-                req_body = iv + req_body
-            elif (ivs == '2'):
-                req_body=self.encr(cipMethod, req_body, key, padding, iv,mode, segment_size)
-                req_body = req_body + iv
-            req_body = eval(mode_enco)(req_body)
-            return req_body
-
-        #Encryption of Parameters: Encrypts Values only: 
-        if (int(mxen)==2):
-            content_type = req.headers.get('Content-Type', '')
-            #Handler if Content-Type is application/json:
-            if content_type.startswith('application/json'):
-                req_body_text = None
-                try:
-                    #Loads the request body in a dictionary json_obj. Traverses keys and values.
-                    #Encrypts the given value if user inputs Y
-                    json_obj = json.loads(req_body)
-                    for ele in json_obj.keys():
-                        print "Encrypt " + ele + "(Y/N)"
-                        choice =raw_input()
-                        if (choice=='Y' or choice=='y'):
-                            #Calls getBodyEnc to get request body to encrypt (If IV is present in the request, temp
-                            # temp will contain the text to be encrypted. After Encryption, IV is concatenated 
-                            # according to the position specified in'ivs'.)
-                            if (ivNum != '1'):
-                                ivs,iv = self.extractIV(json_obj[ele],mode_enco)
-                            temp = self.getBodyEnc(json_obj[ele])
-                            print temp
-                            temp= self.encr(cipMethod, temp, key, padding, iv, mode, segment_size)
-                            if (ivs == '1'):
-                                temp = iv + temp
-                            elif (ivs == '2'):
-                                temp = temp + iv
-                            json_obj[ele] = eval(mode_enco)(temp)
-                            print json_obj[ele]
-                        elif (not choice=='N' or not choice == 'n'):
-                            print "Invalid Choice"
-                    json_str = json.dumps(json_obj, indent=2)
-                    #print json_str
-                    if json_str.count('\n') < 50:
-                        req_body_text = json_str
-                    else:
-                        lines = json_str.splitlines()
-                        req_body_text = "%s\n(%d lines)" % ('\n'.join(lines[:50]), len(lines))
-                except Exception:
-                    #print "hi exception"
-                    req_body_text = req_body
-                    print (traceback.format_exc())
-                return req_body_text
-            else:
-                #Handler if the content-type is not application/json. File 'reqHandler' is opened and request 
-                #is written. The user is required to encrypt the plaintext required and paste back in the file.
-                #'e': encryption. 'q': stop encryption loop
-                reqFile = open('reqHandler.dat', 'w+')
-                reqFile.write(str(req_body))
-                reqFile.close()
-                choice =raw_input("Enter e for encryption of text and q to exit")
-                while (choice!='q'):
-                    encText = raw_input("Enter text to encrypt")
-                    if (ivNum != '1'):
-                        ivs,iv = self.extractIV(encText,mode_enco)
-                    encText = self.getBodyEnc(encText)
-                    encText = self.encr(cipMethod,encText, key, padding, iv, mode, segment_size)
-                    if (ivs == '1'):
-                        encText = iv + encText
-                    else:
-                        encText = encText + iv
-                    encText = eval(mode_enco)(encText)
-                    print encText
-                    choice = raw_input("Do you want to continue? e(encrypt)/q (quit)")
-                reqFile = open('reqHandler.dat', 'r')
-                req_body_text = reqFile.read()
-                reqFile.close()
-                print req_body_text
-                return req_body_text
-
-    # #Encoding functions. User has to pass encoding method and msg to be encoded. 
-    # def enco(self,encoMethod, msg):
-    #     if (encoMethod == 'B64'):
-    #         return EncDec.Base64Enc(msg)
-    #     elif (encoMethod == 'Ahex'):
-    #         return EncDec.AsciiHexEnc(msg)
-    #     elif (encoMethod == 'Bin'):
-    #         return EncDec.BinEnc(msg)
-    #     elif (encoMethod == 'Oct'):
-    #         return EncDec.OctEnc(msg)
-    #     elif (encoMethod == 'Hex'):
-    #         return EncDec.HexEnc(msg)
-    #     elif (encoMethod == 'URL'):
-    #         return EncDec.URLEnc(msg)
-    
-    #Encryption Functions. User has to pass the required parameteres only.
-    def encr(self, cipMethod, msg, key, padding, iv,mode,segment_size):
-        if (cipMethod=='AES'):
-            if (mode == 'ECB'):
-                return enc_dec_aes.aes_ecb_enc(key,msg,padding)
-            elif (mode == 'CBC'):
-                return enc_dec_aes.aes_cbc_enc(key,msg,iv,padding)
-            elif (mode == 'CFB'):
-                return enc_dec_aes.aes_cfb_enc(key,msg,iv,padding,int(segment_size))
-
-        if (cipMethod == 'DES'):
-            if (mode == 'ECB'):
-                return enc_dec_des.des_ecb_enc(key, msg, padding)
-            elif (mode == 'CBC'):
-                return enc_dec_des.des_cbc_enc(key, msg, iv, padding)
-            elif (mode == 'CFB'):
-                return enc_dec_des.des_cfb_enc(key, msg, iv, padding, int(segment_size))
-
-        if (cipMethod == 'DES3'):
-            if (mode == 'ECB'):
-                return enc_dec_des3.des3_ecb_enc(key, msg, padding)
-            elif (mode == 'CBC'):
-                return enc_dec_des3.des3_cbc_enc(key, msg, iv, padding)
-            elif (mode == 'CFB'):
-               return enc_dec_des3.des3_cfb_enc(key, msg, iv, padding, int(segment_size))      
+        pass
 
     def response_handler(self, req, req_body, res, res_body):
-        pass
+        return res_body
 
     def save_handler(self, req, req_body, res, res_body):
         self.print_info(req, req_body, res, res_body)
 
 
 def test(HandlerClass=ProxyRequestHandler, ServerClass=ThreadingHTTPServer, protocol="HTTP/1.1"):
-    #Specify port. Default port: 8080. Uses IPv6 loopback address.
     if sys.argv[1:]:
         port = int(sys.argv[1])
     else:
-        port = 8080
+        port = 6666
     server_address = ('::1', port)
 
     HandlerClass.protocol_version = protocol
@@ -555,6 +380,7 @@ def test(HandlerClass=ProxyRequestHandler, ServerClass=ThreadingHTTPServer, prot
     sa = httpd.socket.getsockname()
     print "Serving HTTP Proxy on", sa[0], "port", sa[1], "..."
     httpd.serve_forever()
+
 
 if __name__ == '__main__':
     test()
