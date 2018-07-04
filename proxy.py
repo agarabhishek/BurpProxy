@@ -18,6 +18,7 @@ from cStringIO import StringIO
 from subprocess import Popen, PIPE
 from HTMLParser import HTMLParser
 import base64
+from pathlib import Path
 from termcolor import colored
 import traceback
 sys.path.insert(0, './Modules')
@@ -391,91 +392,13 @@ class ProxyRequestHandler(BaseHTTPRequestHandler):
         return seg_size
 
     def request_handler(self, req, req_body):
-        print "Request--"
-        for headers in req.headers:
-            print headers
-        print ""
-        print req_body
-
-        #Input of parameters. ivNum contains the number of IVs in the request. If different parameters
-        #contain different IV, then obtained while encryption
-        iv = self.extractIV()
-        #Encryption of full request body:
-        if (int(mxen)==1):
-            req_body = getBodyEnc(req_body)
-            req_body = self.encr(req_body,iv)
-            if (ivs == '1'):
-                req_body = iv + req_body
-            elif (ivs == '2'):
-                req_body = req_body + iv
-            req_body = eval(mode_encod)(req_body)
-            return req_body
-
-        #Encryption of Parameters: Encrypts Values only: 
-        if (int(mxen)==2):
-            content_type = req.headers.get('Content-Type', '')
-            #Handler if Content-Type is application/json:
-            if content_type.startswith('application/json'):
-                req_body_text = None
-                try:
-                    #Loads the request body in a dictionary json_obj. Traverses keys and values.
-                    #Encrypts the given value if user inputs Y
-                    json_obj = json.loads(req_body)
-                    for ele in json_obj.keys(): 
-                        #choice =raw_input("Encrypt " + ele + "(Y/N): ")
-                        choice='y'
-                        if (choice=='Y' or choice=='y'):
-                            #Calls getBodyEnc to get request body to encrypt (If IV is present in the request, temp
-                            # temp will contain the text to be encrypted. After Encryption, IV is concatenated 
-                            # according to the position specified in'ivs'.)
-                            temp = self.getBodyEnc(json_obj[ele])
-                            print temp
-                            temp= self.encr(temp,iv)
-                            if (ivs == '1'):
-                                temp = iv + temp
-                            elif (ivs == '2'):
-                                temp = temp + iv
-                            json_obj[ele] = eval(mode_encod)(temp)
-                            print json_obj[ele]
-                        elif (not choice=='N' or not choice == 'n'):
-                            print "Invalid Choice"
-                    json_str = json.dumps(json_obj, indent=2)
-                    #print json_str
-                    if json_str.count('\n') < 50:
-                        req_body_text = json_str
-                    else:
-                        lines = json_str.splitlines()
-                        req_body_text = "%s\n(%d lines)" % ('\n'.join(lines[:50]), len(lines))
-                except Exception:
-                    #print "hi exception"
-                    req_body_text = req_body
-                    print (traceback.format_exc())
-                print req_body_text
-                return req_body_text
-            else:
-                #Handler if the content-type is not application/json. File 'reqHandler' is opened and request 
-                #is written. The user is required to encrypt the plaintext required and paste back in the file.
-                #'e': encryption. 'q': stop encryption loop
-                reqFile = open('reqHandler.dat', 'w+')
-                reqFile.write(str(req_body))
-                reqFile.close()
-                choice =raw_input("Enter e for encryption of text and q to exit")
-                while (choice!='q'):
-                    encText = raw_input("Enter text to encrypt")
-                    encText = self.getBodyEnc(encText)
-                    encText = self.encr(encText,iv)
-                    if (ivs == '1'):
-                        encText = iv + encText
-                    else:
-                        encText = encText + iv
-                    encText = eval(mode_encod)(encText)
-                    print encText
-                    choice = raw_input("Do you want to continue? e(encrypt)/q (quit)")
-                reqFile = open('reqHandler.dat', 'r')
-                req_body_text = reqFile.read()
-                reqFile.close()
-                print req_body_text
-                return req_body_text
+        global encrdecr
+        if encrdecr=='e':
+            req_body_text=self.encrypt(req,req_body)
+        else:
+            req_body_text=self.decrypt(req,req_body)
+        print(req_body_text)
+        return req_body_text
 
 
     #Encryption Functions. User has to pass the required parameteres only.
@@ -506,362 +429,542 @@ class ProxyRequestHandler(BaseHTTPRequestHandler):
 
 
 
-    def get_res_body_text(self,res,res_body):
-        typ=0
-        if res_body is not None:
-            res_body_text = None
-            content_type = res.headers.get('Content-Type', '')
+    def get_body_text(self,re,re_body):
+    # -text/plain .
+    # -text/html .
+    # --application/json .
+    # --application/xml .
+    # --text/xml .
+    # --application/x-www-form-urlencoded
+    # --multipart/form-data (Think can be split about =)
+    # -multipart/byteranges .
+    # --application/xhtml+xml
 
-            if content_type.startswith('application/json'):
-                try:
-                    json_obj = json.loads(res_body)
-                    json_str=json.dumps(json_obj,indent=2)
-                    if json_str.count('\n') < 50:
-                        res_body_text = json_str
-                    else:
-                        lines = json_str.splitlines()
-                        res_body_text = "%s\n(%d lines)" % ('\n'.join(lines[:50]), len(lines))
-                except ValueError:
-                    res_body_text = res_body
-                typ=1
-            elif content_type.startswith('text/html'):
-                m = re.search(r'<title[^>]*>\s*([^<]+?)\s*</title>', res_body, re.I)
-                if m:
-                    h = HTMLParser()
-                    print with_color(32, "==== HTML TITLE ====\n%s\n" % h.unescape(m.group(1).decode('utf-8')))
-                typ=0
-            elif content_type.startswith('text/') and len(res_body) < 1024:
-                res_body_text = res_body
-                typ=2
-        return res_body_text,typ
-        
-    #This function will return the name of decrypting function to be called and the block size.
-    def get_decryption_function(self):
+        con_type=0
+        if re_body is not None:
+            re_body_text=None
+            content_type=re.headers.get('Content-Type','')
 
-            print colored("Enter Decryption Mode. Possible modes are Aes/Des/Des3-(ECB,CBC,CFB). Input Example- aes_cbc","green")
-            dmode=raw_input()
-            
-            #Setting Block Mode from input
-            block=16 if "aes" in dmode else 8
-            
-            #Forming decryption function name from input
-            dmode=dmode+"_dec"
-            decryption_final="enc_dec_"+dmode.split("_")[0]+'.'+dmode
-            
-            return decryption_final,block
+            if content_type.lower().startswith('application/json'):
+                def extract_dic(a):
+                    global b
+                    b =  ""
+                    global stack
+                    stack = []
+                    global i
+                    i=0
+                    while (i<len(a)):
+                        if (a[i]=='{'):
+                            b = b+ a[i]
+                            if (stack.count('{')!=0):
+                                count =1
+                                i =i +1
+                                stack.append('{')
+                                while count!=0:
+                                    if a[i] == '{':
+                                        b = b + a[i]
+                                        count = count +1
+                                        stack.append('{')
+                                    elif (a[i]== '\"'):
+                                        b = b + '\''
+                                    elif (a[i] == '}'):
+                                        b = b + a[i]
+                                        stack.pop(len(stack)-1)
+                                        count  = count -1
+                                    else:
+                                        b = b + a[i]
+                                    i =i+1
+                                i = i-1
+                            else:
+                                stack.append(a[i])
+                        elif (a[i]=='}'):
+                            b = b + a[i]
+                            stack.pop(len(stack)-1)
+                        else:
+                            b = b + a[i]
+                        i = i +1
+                    return b
+                re_body_text=extract_dic(re_body)
+                con_type=1
+                return re_body,con_type
 
-    def get_decryption_key(self):
+            if not (content_type.lower().startswith('application') or content_type.lower().startswith('text/xml')):
+                re_body_text=re_body
+                con_type=2
 
-            print colored("Enter Decryption Key","green")
-            dkey=raw_input()
-            return dkey
+            if content_type.lower().startswith('application/x') or content_type.lower().startswith('text/xml'):
+                re_body_text=re_body
+                con_type=3
 
-    def get_padding_mode(self):
-
-            print colored("Enter Padding Mode.(Bit,CMS,ZeroLen,Null,ISO,Random). See comments for explanation.","green")
-            # MODES ={
-            # (0,'Bit')     : 'BitPadding: Pad with 0x80 (10000000) followed by zero (null) bytes. Described in ANSI X.923 and ISO/IEC 9797-1',
-            # (1,'CMS')     : 'Also called PKCS#5/PKCS#7. Pad with bytes all of the same value as the number of padding bytes. Default mode used in Cryptographic Message Syntax (CMS as defined in RFC 5652, PKCS#5, PKCS#7 and RFC 1423 PEM)',
-            # (2,'ZeroLen') : 'Also called ANSI X.923. Pad with zeroes except make the last byte equal to the number (length) of padding bytes',
-            # (3,'Null')    : 'Also called Zero Padding.Pad with null bytes. Only for encrypting of text data.',
-            # (4,'ISO')   : 'Known as ISO/IEC 7816-4. Pad with 80 (Hexadecimal) followed by 00.Identical to the bit padding scheme.',
-            # (5,'Random')  : 'Also called -ISO 10126. Pad with random bytes + last byte equal to the number of padding bytes'         
-            # }
-            mode=raw_input()
-            return mode
-
-    def get_encoding_type(self):
-
-            print colored("Enter Encoding type.(Base64Dec/AsciiHexDec/BinDec/OctDec/HexDec)","green")
-            dencod=raw_input()
-            #Forming Decoding Fucnction. dencod is the final function to be called for decoding.
-            dencod="EncDec."+dencod
-            return dencod
-
-    def get_iv_info(self,decryption_final,block):
-
-        iv_info=None
-        if "ecb" not in decryption_final:
-                #Asking for IV input as mode is not ECB
-                print colored("Is IV appended with ciphertext? (y or n)","green")
-                iv_check=raw_input()
-                iv_info=raw_input("Enter whether IV is appended at beginning or at end, IV length is "+str(block)+".\nEnter beg/end\n") if iv_check == 'y' else raw_input("Enter decoded IV")
-        return iv_info
-
-
-    #This function will be called if reponse is of json type
-    def response_is_json(self,res,res_body):
-        # Parameters-Map
-        # decryption_final= Name of decryption function
-        # block= Block size in the decryption function
-        # dkey= Decryption Key
-        # Mode= Padding Mode
-        # dencod= Name of Decoding function
-        # iv_info= Info about position of IV or in some cases IV itself
-        # seg_size= Segment Sizem which is required in modes like CFB
-        # ct= Cipher Text (Data) to be decrypted
-        # decoded_value= The decoded string
-        # iv = Actual IV (decoded) that will be used for decryption.
-
-            #The response is of Json Type, so now we will ask for required parameters.
-            print colored("The response is of json/dictionary\n","green")
-            body=json.loads(res_body)
-            print(body)
-
-            #print colored("\nPress 0 for decrypting entire body (keys+values)? \nPress 1 for decrypting only values.\nPress 2 for exit","green")
-            #decision=raw_input()
-            # if decision=='2':
-            #     os._exit(1)
-            #     quit()
-            decision=1
-            # Original Code
-            # decryption_info=self.get_decryption_function()
-            # decryption_final=decryption_info[0]
-            # block=decryption_info[1]
-            # dkey=self.get_decryption_key()
-            # mode=self.get_padding_mode()
-            # dencod=self.get_encoding_type()
-            global cipMethod
-            global cmode
-            global keyf
-            global mode_enco
-            global padding
-            global ivs
-            global ivf
-            global segment_size
-
-            decryption_final='enc_dec_'+cipMethod.lower()+"."+cipMethod.lower()+"_"+cmode.lower()+"_dec"
-            block=16 if "aes" in decryption_final else 8
-
-            dkey=keyf
-            mode=padding
-            dencod="EncDec."+mode_enco+"Dec"
-            #Asking for function specific parameters. No IV for ECB and Segment Size for CFB.      
-            #iv_info=global get_iv_info(decryption_final,block)
-            iv_info=ivs # 1 for start, 2 for end, None if no IV
-            if iv_info is not None:
-                iv_info='beg' if iv_info=='1' else 'end'
-            #Segment size will only be asked if CFB Mode is there
-            #seg_size=raw_input("Enter Segment Size. Must be iv_info multiple of 8. If left blank, then 8 will be taken by default") if "cfb" in decryption_final else None
-            seg_size=segment_size
-            #Decryption Starts here based on choices entered before.
-            if decision=='0':    
-            #Entire Response Body (Keys and Values) will be decrypted now.
-            #ct= Actual Data to be decrypted
-            #iv= IV
-                
-                for key, value in body.iteritems():
-                    #ct= Actual Data to be decrypted
-                    #iv= IV
-
-                    #Decrypting all keys
-                    decoded_key=eval(dencod)(key)
-                    if iv_info is not None:
-                        if iv_info=='beg' or iv_info== 'end':
-                            #Extracting IV from Cipher Text
-                            iv=decoded_key[0:block] if iv_info=='beg' else decoded_key[-block:]
-                            ct=decoded_key[16:] if iv_info =='beg' else decoded_key[0:len(decoded_key)-block]
-                        else: 
-                            iv=iv_info
-                            #Assuming entire decoded data is to be decrypted here.
-                            ct=decoded_key
-
-                        key=eval(decryption_final)(dkey,ct,iv,mode) if seg_size == None else eval(decryption_final)(dkey,ct,iv,mode,seg_size)
-                    
-                    else:
-                        #If this is called, then no IV was required. Meaning most probably ECB Mode.                           
-                        key=eval(decryption_final)(dkey,decoded_key,mode)
-
-
-                    #Decrypting all values                        
-                    decoded_value=eval(dencod)(value)
-                    if iv_info is not None:
-                        if iv_info=='beg' or iv_info=='end':
-                            #Extracting IV from Cipher Text
-                            iv=decoded_value[0:block] if iv_info=='beg' else decoded_value[-block:]
-                            ct=decoded_value[16:] if iv_info =='beg' else decoded_value[0:len(decoded_value)-block]
-                        else: 
-                            iv=ivf
-                            ct=decoded_value
-
-                        value=eval(decryption_final)(dkey,ct,iv,mode) if seg_size == None else eval(decryption_final)(dkey,ct,iv,mode,seg_size)
-                    
-                    else:
-                        #If this is called, then no IV was required. Meaning most probably ECB Mode.
-                        value=eval(decryption_final)(dkey,decoded_value,mode)
-
-
-                res_body_text=body
-
+            if content_type.lower().startswith('application/x-www-form-urlencoded'):
+                re_body_text=re_body
+                con_type=4
+            if content_type.lower().startswith('multipart/form-data'):
+                re_body_text=re_body
+                con_type=5
             else:
-
-            #Only values will be decrypted
-                #print colored("Decrypt all values(y/n)?","green")  
-                #ans=raw_input()
-                ans='y'
-                if ans=='y':
-                #Decrypting all values
-                    for key in body:
-                        decoded_value=eval(dencod)(body[key])
-                        print(len(decoded_value))
-                        if iv_info is not None:
-                            if iv_info=='beg' or iv_info=='end':
-                                #Extracting IV from Cipher Text
-                                iv=decoded_value[0:block] if iv_info=='beg' else decoded_value[-block:]
-                                ct=decoded_value[16:] if iv_info =='beg' else decoded_value[0:len(decoded_value)-block]
-                            else: 
-                                iv=ivf
-                                ct=decoded_value
-
-                            body[key]=eval(decryption_final)(dkey,ct,iv,mode) if seg_size == None else eval(decryption_final)(dkey,ct,iv,mode,seg_size)
-                        
-                        else:
-                            #If this is called, then no IV was required. Meaning most probably ECB Mode.
-                            body[key]=eval(decryption_final)(dkey,decoded_value,mode)
+                re_body_text=re_body
+                con_type=0
                 
-                else:
-                    list_val=[]
-                    print colored("Enter all keys whose values have to be decrypted","green")
-                    list_val.append(raw_input())
-                    #Here only specific values will be encrypted.
+        return re_body_text,con_type
+
+
+    # #This function will return the name of decrypting function to be called and the block size.
+    # def get_decryption_function(self):
+
+    #         print colored("Enter Decryption Mode. Possible modes are Aes/Des/Des3-(ECB,CBC,CFB). Input Example- aes_cbc","green")
+    #         dmode=raw_input()
+            
+    #         #Setting Block Mode from input
+    #         block=16 if "aes" in dmode else 8
+            
+    #         #Forming decryption function name from input
+    #         dmode=dmode+"_dec"
+    #         decryption_final="enc_dec_"+dmode.split("_")[0]+'.'+dmode
+            
+    #         return decryption_final,block
+
+    # def get_decryption_key(self):
+
+    #         print colored("Enter Decryption Key","green")
+    #         dkey=raw_input()
+    #         return dkey
+
+    # def get_padding_mode(self):
+
+    #         print colored("Enter Padding Mode.(Bit,CMS,ZeroLen,Null,ISO,Random). See comments for explanation.","green")
+    #         # MODES ={
+    #         # (0,'Bit')     : 'BitPadding: Pad with 0x80 (10000000) followed by zero (null) bytes. Described in ANSI X.923 and ISO/IEC 9797-1',
+    #         # (1,'CMS')     : 'Also called PKCS#5/PKCS#7. Pad with bytes all of the same value as the number of padding bytes. Default mode used in Cryptographic Message Syntax (CMS as defined in RFC 5652, PKCS#5, PKCS#7 and RFC 1423 PEM)',
+    #         # (2,'ZeroLen') : 'Also called ANSI X.923. Pad with zeroes except make the last byte equal to the number (length) of padding bytes',
+    #         # (3,'Null')    : 'Also called Zero Padding.Pad with null bytes. Only for encrypting of text data.',
+    #         # (4,'ISO')   : 'Known as ISO/IEC 7816-4. Pad with 80 (Hexadecimal) followed by 00.Identical to the bit padding scheme.',
+    #         # (5,'Random')  : 'Also called -ISO 10126. Pad with random bytes + last byte equal to the number of padding bytes'         
+    #         # }
+    #         mode=raw_input()
+    #         return mode
+
+    # def get_encoding_type(self):
+
+    #         print colored("Enter Encoding type.(Base64Dec/AsciiHexDec/BinDec/OctDec/HexDec)","green")
+    #         dencod=raw_input()
+    #         #Forming Decoding Fucnction. dencod is the final function to be called for decoding.
+    #         dencod="EncDec."+dencod
+    #         return dencod
+
+    # def get_iv_info(self,decryption_final,block):
+
+    #     iv_info=None
+    #     if "ecb" not in decryption_final:
+    #             #Asking for IV input as mode is not ECB
+    #             print colored("Is IV appended with ciphertext? (y or n)","green")
+    #             iv_check=raw_input()
+    #             iv_info=raw_input("Enter whether IV is appended at beginning or at end, IV length is "+str(block)+".\nEnter beg/end\n") if iv_check == 'y' else raw_input("Enter decoded IV")
+    #     return iv_info
+
+
+    # #This function will be called if reponse is of json type
+    # def response_is_json(self,res,res_body):
+    #     # Parameters-Map
+    #     # decryption_final= Name of decryption function
+    #     # block= Block size in the decryption function
+    #     # dkey= Decryption Key
+    #     # Mode= Padding Mode
+    #     # dencod= Name of Decoding function
+    #     # iv_info= Info about position of IV or in some cases IV itself
+    #     # seg_size= Segment Sizem which is required in modes like CFB
+    #     # ct= Cipher Text (Data) to be decrypted
+    #     # decoded_value= The decoded string
+    #     # iv = Actual IV (decoded) that will be used for decryption.
+
+    #         #The response is of Json Type, so now we will ask for required parameters.
+    #         print colored("The response is of json/dictionary\n","green")
+    #         body=json.loads(res_body)
+    #         print(body)
+
+    #         #print colored("\nPress 0 for decrypting entire body (keys+values)? \nPress 1 for decrypting only values.\nPress 2 for exit","green")
+    #         #decision=raw_input()
+    #         # if decision=='2':
+    #         #     os._exit(1)
+    #         #     quit()
+    #         decision=1
+    #         # Original Code
+    #         # decryption_info=self.get_decryption_function()
+    #         # decryption_final=decryption_info[0]
+    #         # block=decryption_info[1]
+    #         # dkey=self.get_decryption_key()
+    #         # mode=self.get_padding_mode()
+    #         # dencod=self.get_encoding_type()
+    #         global cipMethod
+    #         global cmode
+    #         global keyf
+    #         global mode_enco
+    #         global padding
+    #         global ivs
+    #         global ivf
+    #         global segment_size
+
+    #         decryption_final='enc_dec_'+cipMethod.lower()+"."+cipMethod.lower()+"_"+cmode.lower()+"_dec"
+    #         block=16 if "aes" in decryption_final else 8
+
+    #         dkey=keyf
+    #         mode=padding
+    #         dencod="EncDec."+mode_enco+"Dec"
+    #         #Asking for function specific parameters. No IV for ECB and Segment Size for CFB.      
+    #         #iv_info=global get_iv_info(decryption_final,block)
+    #         iv_info=ivs # 1 for start, 2 for end, None if no IV
+    #         if iv_info is not None:
+    #             iv_info='beg' if iv_info=='1' else 'end'
+    #         #Segment size will only be asked if CFB Mode is there
+    #         #seg_size=raw_input("Enter Segment Size. Must be iv_info multiple of 8. If left blank, then 8 will be taken by default") if "cfb" in decryption_final else None
+    #         seg_size=segment_size
+    #         #Decryption Starts here based on choices entered before.
+    #         if decision=='0':    
+    #         #Entire Response Body (Keys and Values) will be decrypted now.
+    #         #ct= Actual Data to be decrypted
+    #         #iv= IV
+                
+    #             for key, value in body.iteritems():
+    #                 #ct= Actual Data to be decrypted
+    #                 #iv= IV
+
+    #                 #Decrypting all keys
+    #                 decoded_key=eval(dencod)(key)
+    #                 if iv_info is not None:
+    #                     if iv_info=='beg' or iv_info== 'end':
+    #                         #Extracting IV from Cipher Text
+    #                         iv=decoded_key[0:block] if iv_info=='beg' else decoded_key[-block:]
+    #                         ct=decoded_key[16:] if iv_info =='beg' else decoded_key[0:len(decoded_key)-block]
+    #                     else: 
+    #                         iv=iv_info
+    #                         #Assuming entire decoded data is to be decrypted here.
+    #                         ct=decoded_key
+
+    #                     key=eval(decryption_final)(dkey,ct,iv,mode) if seg_size == None else eval(decryption_final)(dkey,ct,iv,mode,seg_size)
                     
-                    for i in list_val:
-                        decoded_value=eval(dencod)(body[i])
+    #                 else:
+    #                     #If this is called, then no IV was required. Meaning most probably ECB Mode.                           
+    #                     key=eval(decryption_final)(dkey,decoded_key,mode)
 
-                        if iv_info is not None:
-                            if iv_info =='beg' or iv_info=='end':
-                                #Extracting IV from Cipher Text
-                                iv=decoded_value[0:block] if iv_info=='beg' else decoded_value[-block:]
-                                ct=decoded_value[16:] if iv_info =='beg' else decoded_value[0:len(decoded_value)-block]
 
-                            else: 
-                                iv=iv_info
-                                #Assuming entire decoded data is to be decrypted here.
-                                ct=decoded_value
-                            body[i]=eval(decryption_final)(dkey,ct,iv,mode) if seg_size == None else eval(decryption_final)(dkey,ct,iv,mode,seg_size)
+    #                 #Decrypting all values                        
+    #                 decoded_value=eval(dencod)(value)
+    #                 if iv_info is not None:
+    #                     if iv_info=='beg' or iv_info=='end':
+    #                         #Extracting IV from Cipher Text
+    #                         iv=decoded_value[0:block] if iv_info=='beg' else decoded_value[-block:]
+    #                         ct=decoded_value[16:] if iv_info =='beg' else decoded_value[0:len(decoded_value)-block]
+    #                     else: 
+    #                         iv=ivf
+    #                         ct=decoded_value
+
+    #                     value=eval(decryption_final)(dkey,ct,iv,mode) if seg_size == None else eval(decryption_final)(dkey,ct,iv,mode,seg_size)
+                    
+    #                 else:
+    #                     #If this is called, then no IV was required. Meaning most probably ECB Mode.
+    #                     value=eval(decryption_final)(dkey,decoded_value,mode)
+
+
+    #             res_body_text=body
+
+    #         else:
+
+    #         #Only values will be decrypted
+    #             #print colored("Decrypt all values(y/n)?","green")  
+    #             #ans=raw_input()
+    #             ans='y'
+    #             if ans=='y':
+    #             #Decrypting all values
+    #                 for key in body:
+    #                     decoded_value=eval(dencod)(body[key])
+    #                     print(len(decoded_value))
+    #                     if iv_info is not None:
+    #                         if iv_info=='beg' or iv_info=='end':
+    #                             #Extracting IV from Cipher Text
+    #                             iv=decoded_value[0:block] if iv_info=='beg' else decoded_value[-block:]
+    #                             ct=decoded_value[16:] if iv_info =='beg' else decoded_value[0:len(decoded_value)-block]
+    #                         else: 
+    #                             iv=ivf
+    #                             ct=decoded_value
+
+    #                         body[key]=eval(decryption_final)(dkey,ct,iv,mode) if seg_size == None else eval(decryption_final)(dkey,ct,iv,mode,seg_size)
                         
-                        else:
-                            #If this is called, then no IV was required. Meaning most probably ECB Mode.
-                            body[i]=eval(decryption_final)(dkey,decoded_value,mode)
-
-
-
-                res_body_text=body
-
-
-            return json.dumps(res_body_text,indent=2).replace("\\\"","")
-
-
-    def response_custom(self,res,res_body_text):
-        # Parameters-Map
-        # decryption_final= Name of decryption function
-        # block= Block size in the decryption function
-        # dkey= Decryption Key
-        # Mode= Padding Mode
-        # dencod= Name of Decoding function
-        # iv_info= Info about position of IV or in some cases IV itself
-        # seg_size= Segment Sizem which is required in modes like CFB
-        # ct= Cipher Text (Data) to be decrypted
-        # decoded_value= The decoded string
-        # iv = Actual IV (decoded) that will be used for decryption.
-
-
-        #This function will handle non json type responses.
-        print colored("\nThe Content Type is "+res.headers.get('Content-Type', ''),"green")
-        file = open("response.txt","w")
-        file.write(str(res_body_text))
-        file.close() 
-        print colored("The response is saved in a file- response.txt. Please see it and select words to decrypt.","green")
-        print colored("You will have to enter the words in program to be decrypt them manually.","green")
-        print colored("After you have decrypted the required words and made changes to txt file. Select Exit","green")
-        print colored("Press 1 to start decryption. Press 2 to Exit")
-        ext=raw_input()
-        global cipMethod
-        global cmode
-        global keyf
-        global mode_enco
-        global padding
-        global ivs
-        global ivf
-        global segment_size
-        while ext==str(1):
-            #Fetching all required parameters that will be required later.
-            # decryption_info=self.get_decryption_function()
-            # decryption_final=decryption_info[0]
-            # block=decryption_info[1]
+    #                     else:
+    #                         #If this is called, then no IV was required. Meaning most probably ECB Mode.
+    #                         body[key]=eval(decryption_final)(dkey,decoded_value,mode)
                 
-            # dkey=self.get_decryption_key()
-            # mode=self.get_padding_mode()
-            # dencod=self.get_encoding_type()
-            decryption_final='enc_dec_'+cipMethod.lower()+"."+cipMethod.lower()+"_"+cmode.lower()+"_dec"
-            block=16 if "AES" in decryption_final else 8
+    #             else:
+    #                 list_val=[]
+    #                 print colored("Enter all keys whose values have to be decrypted","green")
+    #                 list_val.append(raw_input())
+    #                 #Here only specific values will be encrypted.
+                    
+    #                 for i in list_val:
+    #                     decoded_value=eval(dencod)(body[i])
 
-            dkey=keyf
-            mode=padding
-            dencod="EncDec."+mode_enco+"Dec"
-            #Asking for function specific parameters. No IV for ECB and Segment Size for CFB.      
-            #iv_info=global get_iv_info(decryption_final,block)
-            iv_info=ivs # 1 for start, 2 for end, None if no IV
-            if iv_info is not None:
-                iv_info='beg' if iv_info=='1' else 'end'
-            if ivf != None:
-                iv_info=iv
-            #Segment size will only be asked if CFB Mode is there
-            #seg_size=raw_input("Enter Segment Size. Must be iv_info multiple of 8. If left blank, then 8 will be taken by default") if "cfb" in decryption_final else None
-            seg_size=segment_size
-            while ext==str(1):
-                print colored("Enter word to be decrypted","green")
-                word=raw_input()
-                if iv_info is not None:
-                    if iv_info=='beg' or iv_info=='end':
-                        #Extracting IV from Cipher Text
-                        iv=decoded_value[0:block] if iv_info=='beg' else decoded_value[-block:]
-                        ct=decoded_value[16:] if iv_info =='beg' else decoded_value[0:len(decoded_value)-block]
-                    else: 
-                        #In this case, iv was manually entered by user.
-                        iv=iv_info
-                        ct=decoded_value
-                    value=eval(decryption_final)(dkey,ct,iv,mode) if seg_size == None else eval(decryption_final)(dkey,ct,iv,mode,seg_size)
-                
-                else:
-                    #If this is called, then no IV was required. Meaning most probably ECB Mode.
-                    value=eval(decryption_final)(dkey,decoded_value,mode)
-                
-                print colored("Decrypted value is"+value,"green")
-                print colored("1)Decrypt more words\n2)Exit")
-                ext=raw_input()
-                if ext=='2':
-                    break
-        print colored("Please save all changes in response.txt. Press 3 when done","green")
-        final=raw_input()
-        if final=='3':
-            file=open("response.txt","r")
-            res_body_text=file.read()
+    #                     if iv_info is not None:
+    #                         if iv_info =='beg' or iv_info=='end':
+    #                             #Extracting IV from Cipher Text
+    #                             iv=decoded_value[0:block] if iv_info=='beg' else decoded_value[-block:]
+    #                             ct=decoded_value[16:] if iv_info =='beg' else decoded_value[0:len(decoded_value)-block]
 
-        return res_body_text
+    #                         else: 
+    #                             iv=iv_info
+    #                             #Assuming entire decoded data is to be decrypted here.
+    #                             ct=decoded_value
+    #                         body[i]=eval(decryption_final)(dkey,ct,iv,mode) if seg_size == None else eval(decryption_final)(dkey,ct,iv,mode,seg_size)
+                        
+    #                     else:
+    #                         #If this is called, then no IV was required. Meaning most probably ECB Mode.
+    #                         body[i]=eval(decryption_final)(dkey,decoded_value,mode)
+
+
+
+    #             res_body_text=body
+
+
+    #         return json.dumps(res_body_text,indent=2).replace("\\\"","")
+
+
+    # def response_custom(self,res,res_body_text):
+    #     # Parameters-Map
+    #     # decryption_final= Name of decryption function
+    #     # block= Block size in the decryption function
+    #     # dkey= Decryption Key
+    #     # Mode= Padding Mode
+    #     # dencod= Name of Decoding function
+    #     # iv_info= Info about position of IV or in some cases IV itself
+    #     # seg_size= Segment Sizem which is required in modes like CFB
+    #     # ct= Cipher Text (Data) to be decrypted
+    #     # decoded_value= The decoded string
+    #     # iv = Actual IV (decoded) that will be used for decryption.
+
+
+    #     #This function will handle non json type responses.
+    #     print colored("\nThe Content Type is "+res.headers.get('Content-Type', ''),"green")
+    #     file = open("response.txt","w")
+    #     file.write(str(res_body_text))
+    #     file.close() 
+    #     print colored("The response is saved in a file- response.txt. Please see it and select words to decrypt.","green")
+    #     print colored("You will have to enter the words in program to be decrypt them manually.","green")
+    #     print colored("After you have decrypted the required words and made changes to txt file. Select Exit","green")
+    #     print colored("Press 1 to start decryption. Press 2 to Exit")
+    #     ext=raw_input()
+    #     global cipMethod
+    #     global cmode
+    #     global keyf
+    #     global mode_enco
+    #     global padding
+    #     global ivs
+    #     global ivf
+    #     global segment_size
+    #     while ext==str(1):
+    #         #Fetching all required parameters that will be required later.
+    #         # decryption_info=self.get_decryption_function()
+    #         # decryption_final=decryption_info[0]
+    #         # block=decryption_info[1]
+                
+    #         # dkey=self.get_decryption_key()
+    #         # mode=self.get_padding_mode()
+    #         # dencod=self.get_encoding_type()
+    #         decryption_final='enc_dec_'+cipMethod.lower()+"."+cipMethod.lower()+"_"+cmode.lower()+"_dec"
+    #         block=16 if "AES" in decryption_final else 8
+
+    #         dkey=keyf
+    #         mode=padding
+    #         dencod="EncDec."+mode_enco+"Dec"
+    #         #Asking for function specific parameters. No IV for ECB and Segment Size for CFB.      
+    #         #iv_info=global get_iv_info(decryption_final,block)
+    #         iv_info=ivs # 1 for start, 2 for end, None if no IV
+    #         if iv_info is not None:
+    #             iv_info='beg' if iv_info=='1' else 'end'
+    #         if ivf != None:
+    #             iv_info=iv
+    #         #Segment size will only be asked if CFB Mode is there
+    #         #seg_size=raw_input("Enter Segment Size. Must be iv_info multiple of 8. If left blank, then 8 will be taken by default") if "cfb" in decryption_final else None
+    #         seg_size=segment_size
+    #         while ext==str(1):
+    #             print colored("Enter word to be decrypted","green")
+    #             word=raw_input()
+    #             if iv_info is not None:
+    #                 if iv_info=='beg' or iv_info=='end':
+    #                     #Extracting IV from Cipher Text
+    #                     iv=decoded_value[0:block] if iv_info=='beg' else decoded_value[-block:]
+    #                     ct=decoded_value[16:] if iv_info =='beg' else decoded_value[0:len(decoded_value)-block]
+    #                 else: 
+    #                     #In this case, iv was manually entered by user.
+    #                     iv=iv_info
+    #                     ct=decoded_value
+    #                 value=eval(decryption_final)(dkey,ct,iv,mode) if seg_size == None else eval(decryption_final)(dkey,ct,iv,mode,seg_size)
+                
+    #             else:
+    #                 #If this is called, then no IV was required. Meaning most probably ECB Mode.
+    #                 value=eval(decryption_final)(dkey,decoded_value,mode)
+                
+    #             print colored("Decrypted value is"+value,"green")
+    #             print colored("1)Decrypt more words\n2)Exit")
+    #             ext=raw_input()
+    #             if ext=='2':
+    #                 break
+    #     print colored("Please save all changes in response.txt. Press 3 when done","green")
+    #     final=raw_input()
+    #     if final=='3':
+    #         file=open("response.txt","r")
+    #         res_body_text=file.read()
+
+    #     return res_body_text
 
 
 
     def response_handler(self, res ,res_body):
 
         #key="441538f57b510c0512f594c213cc523c"
-        #This function fetches response body and type. Type= 0 For html, 1 for json, 2 for others(text/)
-        response_list=self.get_res_body_text(res,res_body)
-        res_body_text=response_list[0]
-        type_res=response_list[1]
-        print colored("\n-------------------------------------------------","green")
-        print colored("The response is printed below-",'green')
-        print(res_body_text)
-        print("")
-        if type_res==1:
-            #Handling Json Responses
-            res_body_text=self.response_is_json(res,res_body_text)
+        global encrdecr
+        # if encrdecr=='e':
+        #     res_body_text=decrypt(res,res_body)
+        # else:
+        #     res_body_text=encrypt(res,res_body)
+        # return res_body_text
+        pass
+
+    def decrypt(self,re,re_body):
+        re_list=self.get_body_text(re,re_body)
+        re_body_text=re_list[0]
+        con_type=re_list[1]
+        # print colored("\n-------------------------------------------------","green")
+        # print colored("The re is printed below-",'green')
+        # print(re_body_text)
+
+        global cipMethod
+        global cmode
+        global keyf
+        global mode_enco
+        global mode_encod
+        global padding
+        global ivs
+        global ivf
+        global segment_size
+        global mxen
+        global encrdecr
+        global flag_for_mul_inp
+        print(mxen)
+
+        decryption_final='enc_dec_'+cipMethod.lower()+"."+cipMethod.lower()+"_"+cmode.lower()+"_dec"
+        block=16 if "aes" in decryption_final else 8
+        print
+        dkey=keyf
+        mode=padding
+        dencod="EncDec."+mode_enco+"Dec"
+        #Asking for function specific parameters. No IV for ECB and Segment Size for CFB.  
+        iv_info=ivs # 1 for start, 2 for end, None if no IV
+        if iv_info is not None:
+            iv_info='beg' if iv_info=='1' else 'end'
+        #Segment size will only be asked if CFB Mode is there
+        seg_size=segment_size
+
+        def decryption(todecrypt):
+            decoded_value=eval(dencod)(todecrypt)
+            print(len(decoded_value))
+            if iv_info is not None:
+                if iv_info=='beg' or iv_info=='end':
+                    #Extracting IV from Cipher Text
+                    iv=decoded_value[0:block] if iv_info=='beg' else decoded_value[-block:]
+                    ct=decoded_value[16:] if iv_info =='beg' else decoded_value[0:len(decoded_value)-block]
+                    todecrypt=eval(decryption_final)(dkey,ct,iv,mode) if seg_size == None else eval(decryption_final)(dkey,ct,iv,mode,seg_size)
+                    iv=eval(mode_encod)(iv)
+                    file=open("iv.txt","w") if encrdecr=='d' else open("iv.txt","a")
+                    file.write(str(iv)+"\n")
+                    file.close()
+                    flag_for_iv=1
+                    print("This should be printed only once. Otherwise go fuck youself.")
+                elif iv_info is None and ivf is not None: 
+                    iv=ivf
+                    ct=decoded_value
+                    print("Hi")
+                    todecrypt=eval(decryption_final)(dkey,ct,iv,mode) if seg_size == None else eval(decryption_final)(dkey,ct,iv,mode,seg_size)   
+            else:
+                #If this is called, then no IV was required. Meaning most probably ECB Mode.
+                todecrypt=eval(decryption_final)(dkey,decoded_value,mode)
+            return todecrypt
+
+        if mxen == '1':
+            res_body_text=decryption(re_body_text)
+            return re_body_text
+
+        if mxen =='2':
+            if con_type==2 or con_type==0:
+                sys.exit('This object has no key value pair!')
+            if con_type==1:
+                body=json.loads(re_body_text)
+                for key in body:
+                    body[key]=decryption(body[key])
+                return json.dumps(body,indent=2).replace("\\\"","")
+            if con_type==3:
+                e = ET.fromstring(str(re_body_text))
+                for elt in e.iter():
+                    if elt.text is not None:
+                        elt.text=decryption(elt.text)
+                #Check what to do about XML Version and encoding
+                re_body_text=ET.tostring(e, encoding='utf8', method='xml')
+                return re_body_text
+            if con_type==4:
+                new_text=''
+                key_value_pairs=re_body_text.split("&")
+                for i in key_value_pairs:
+                    new_text=new_text+i.split("=")[0]+"="
+                    value=i.split("=")[1]
+                    value=decryption(value)
+                    new_text=new_text+value+"&"
+                re_body_text=new_text
+                return re_body_text
+            if con_type==5:
+                pass
+                # TODO for multipart/form-data
+        if mxen =='3':
+            print("It came here")
+            if flag_for_mul_inp==0:
+                print colored("Please enter the keys the values of which have to decrpted. Separate by ,\n","green")
+                lis_of_parameters=raw_input()
+                file=open("multiple.txt","w")
+                for i in lis_of_parameters.split(","):
+                    file.write(str(i.replace(" ",""))+"\n")
+                file.close()
+                flag_for_mul_inp=1
+                print("This should also be printed only once otherwise go fuck yourself")
+            file=open("multiple.txt","r")
+            parameters=file.readlines()
+            file.close()
+            print(len(parameters))
+            #for i in (0,len(parameters)):
+            #---------------Reverse it------------------
+            parameters[0]=parameters[0].replace("\n","")
+            if con_type==1:
+                body=json.loads(re_body_text)
+                for i in parameters:
+                    body[i]=decryption(body[i])
+                return json.dumps(body,indent=2).replace("\\\"","")
+            if con_type==3:
+                e = ET.fromstring(str(re_body_text))
+                for elt in e.iter():
+                    if elt.tag in parameters:
+                        elt.text=decryption(elt.text)
+                #Check what to do about XML Version and encoding
+                re_body_text=ET.tostring(e, encoding='utf8', method='xml')
+                return re_body_text
+            if con_type==4:
+                elem_dic=dict(x.split('=') for x in res_body_text.split("&"))
+                for i in elem_dic:
+                    if elem_dic[i] in parameters:
+                        elem_dic[i]=decryption(elem_dic[i])
+                new_text=""
+                for key, value in elem_dic.iteritems():
+                    new_text=new_text+key+"="+value+"&"
+                return new_text
+            if con_type==5:
+                # TODO for urlencod
+                pass
         else:
-            #Handling Other Responses
-            res_body_text=self.response_custom(res,res_body_text)
-        return res_body_text
-
-
+            sys.exit("Please enter valid mxen")    
 
 
     def save_handler(self, req, req_body, res, res_body):
@@ -870,10 +973,8 @@ class ProxyRequestHandler(BaseHTTPRequestHandler):
 
 
 def test(HandlerClass=ProxyRequestHandler, ServerClass=ThreadingHTTPServer, protocol="HTTP/1.1"):
-    if sys.argv[1:]:
-        port = int(sys.argv[1])
-    else:
-        port = 6666
+    port = sys.argv[1]
+    port=int(port)
     server_address = ('::1', port)
     HandlerClass.protocol_version = protocol
     httpd = ServerClass(server_address, HandlerClass)
@@ -884,6 +985,7 @@ def test(HandlerClass=ProxyRequestHandler, ServerClass=ThreadingHTTPServer, prot
 
 
 if __name__ == '__main__':
+    #--port --cipMethod --key --cmode --mode_enco --mxen --encrdecr --padding --ivs --segment_size
     global cipMethod
     global keyf
     global cmode
@@ -894,15 +996,52 @@ if __name__ == '__main__':
     global mode_enco
     global mode_encod
     global mxen
-    cipMethod = raw_input("Encryption Method- AES/DES/DES3: ")
-    keyf = raw_input("Key: ")
-    cmode =raw_input("mode: ECB/CBC/CFB: ")
-    #ivs,iv = self.extractIV() if mode not in 'ECB' else None
-    ivf = raw_input("Enter IV: ") if cmode != 'ECB' else None
-    ivs = raw_input("Positin of IV: Starting(1) or Ending(2): ") if cmode!='ECB' else None
-    segment_size = self.getSegmentSize() if cmode == 'CFB' else None
-    padding = raw_input("Padding format: Bit, CMS, ZeroLen, Null, ISO, Random,None: ")
-    mode_enco =raw_input("Mode of Encoding: Base64/AsciiHex/Bin/Oct/Hex/URL: ")
-    mode_encod = "EncDec." + mode_enco + "Enc"
-    mxen=raw_input("Mode of Encryption: Full request body(1) or parameters(2): ")
+    global encrdecr
+    global iv1
+    global flag_for_mul_inp
+    flag_for_mul_inp=0
+    fname = Path("requirements.dat")
+    if (fname.exists()):
+        fileReq = open("requirements.dat",'r')
+        dic = json.loads(fileReq.read())
+        cipMethod = dic['cipMethod']
+        keyf = dic['keyf']
+        cmode = dic['cmode']
+        ivf = dic['ivf']
+        ivs = str(dic['ivs']) if cmode !='ECB' else None
+        segment_size = str(dic['segment_size']) if dic['segment_size']!= None else None
+        padding = dic['padding']
+        mode_enco = dic['mode_enco']
+        mode_encod = "EncDec." + mode_enco + "Enc"
+        mxen = str(dic['mxen'])
+        encrdecr = str(dic['encrdecr'])
+        fileReq.close()
+    else:
+        dic = {}
+        cipMethod = sys.argv[2]
+        dic['cipMethod'] =  cipMethod
+        keyf = sys.argv[3]
+        dic['keyf'] = keyf
+        cmode = sys.argv [4]
+        dic['cmode'] = cmode
+        choose = raw_input ("Want to enter IV(y/n)")
+        ivf = raw_input("Enter IV") if cmode != 'ECB' and choose == 'y' else None
+        dic['ivf'] = ivf
+        ivs = str(sys.argv[9]) if cmode!='ECB' else None #raw_input("Positin of IV: Starting(1) or Ending(2): ")
+        dic['ivs'] = ivs
+        segment_size = str(sys.argv[10]) if cmode == 'CFB' else None
+        dic['segment_size'] = segment_size
+        padding = sys.argv[8]  #raw_input("Padding format: Bit, CMS, ZeroLen, Null, ISO, Random,None: ")
+        dic['padding'] = padding
+        mode_enco = sys.argv[5] #raw_input("Mode of Encoding: Base64/AsciiHex/Bin/Oct/Hex/URL: ")
+        dic['mode_enco'] = mode_enco
+        mode_encod = "EncDec." + mode_enco + "Enc"
+        mxen= str(sys.argv[6]) #raw_input("Mode of Encryption: Full request body(1) or parameters(2): ")
+        dic['mxen'] = mxen
+        encrdecr = str(sys.argv[7])  # e for encryption, d for decryption
+        dic['encrdecr'] = encrdecr
+        fileReq = open("requirements.dat",'w+')
+        fileReq.write(json.dumps(dic,indent=2))
+        fileReq.close()
     test()
+
