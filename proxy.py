@@ -26,6 +26,7 @@ import enc_dec_aes
 import enc_dec_des
 import enc_dec_des3
 import EncDec
+import xml.etree.ElementTree as ET
 
 def with_color(c, s):
     return "\x1b[%dm%s\x1b[0m" % (c, s)
@@ -371,13 +372,11 @@ class ProxyRequestHandler(BaseHTTPRequestHandler):
 
     #Function to extract IV
     def extractIV(self):
-        #For obtaining IV from Suraksha-
-        #'.' is to be added to the request body to separate IV encoded block and decrypted message
         iv = ""
         if ivf is None:
-            ivobj = open('iv.txt', r)
+            ivobj = open('iv.txt', 'r')
             lines = ivobj.readlines()
-            iv = lines[0] if encrdecr == 'd' else lines[1]
+            iv = lines[0] if encrdecr == 'e' else lines[1]
             ivobj.close()
         else:
             iv =ivf
@@ -389,14 +388,51 @@ class ProxyRequestHandler(BaseHTTPRequestHandler):
 
     #Function to extract text to encrypt
     def getBodyEnc(self, requestString):
-        #For Suraksha app-
-        #identifier = '.'
-        #return requestString.split(identifier)[1]
         return requestString
 
+    #Function to optimise json dictionary strings 
+    def extract_dic(self,a):
+        global b 
+        b =  ""
+        global stack
+        stack = []
+        global i
+        i=0
+        while (i<len(a)):
+            if (a[i]=='{'):
+                b = b+ a[i]
+                if (stack.count('{')!=0):
+                    count =1
+                    i =i +1
+                    stack.append('{')
+                    while count!=0:
+                        if a[i] == '{':
+                            b = b + a[i]
+                            count = count +1
+                            stack.append('{')
+                        elif (a[i]== '\"'):
+                            b = b + '\''
+                        elif (a[i] == '}'):
+                            b = b + a[i]
+                            stack.pop(len(stack)-1)
+                            count  = count -1
+                        else:
+                            b = b + a[i]
+                        i =i+1
+                    i = i-1
+                else:
+                    stack.append(a[i])
+            elif (a[i]=='}'):
+                b = b + a[i]
+                stack.pop(len(stack)-1)
+            else:
+                b = b + a[i]
+            i = i +1
+        return b
+    # Function to return content_type and req_body.
+    # handles -text/plain, text/html, application/json, application/xml, text/xml, application/x-www-form-urlencoded
+    # multipart/form-data (Think can be split about =), multipart/byteranges, application/xhtml+xml
     def content_type(self, re, re_body):
-        # handles -text/plain, text/html, application/json, application/xml, text/xml, application/x-www-form-urlencoded
-        # multipart/form-data (Think can be split about =), multipart/byteranges, application/xhtml+xml
         con_type=0
         if re_body is not None:
             re_body_text=None
@@ -404,130 +440,170 @@ class ProxyRequestHandler(BaseHTTPRequestHandler):
                 content_type=re.headers.get('Content-Type','')
 
                 if content_type.lower().startswith('application/json'):
-                    try:
-                          #Aastha's function will give json
-                        json_obj = json.loads(re_body)
-                        json_str = json.dumps(json_obj, indent=2)
-                        if json_str.count('\n') < 50:
-                            re_body_text = json_str
-                        else:
-                            lines = json_str.splitlines()
-                            res_body_text = "%s\n(%d lines)" % ('\n'.join(lines[:50]), len(lines))
-                    except ValueError:
-                        re_body_text = re_body
+                    
+                    #Aastha's function will give json
+                    print "hi"
+                    re_body_text = self.extract_dic(re_body)
+                    print re_body_text
                     con_type=1
 
-                if not (content_type.lower().startswith('application') or content_type.lower().startswith('text/xml')):
+                elif not (content_type.lower().startswith('application') or content_type.lower().startswith('text/xml')):
                     re_body_text=re_body
                     con_type=2
 
-                if content_type.lower().startswith('application/x') or content_type.lower().startswith('text/xml'):
+                elif content_type.lower().startswith('application/x') or content_type.lower().startswith('text/xml'):
                     re_body_text=re_body
                     con_type=3
 
-                if content_type.lower().startswith('application/x-www-form-urlencoded'):
+                elif content_type.lower().startswith('application/x-www-form-urlencoded'):
                     re_body_text=re_body
                     con_type=4
-                if content_type.lower().startswith('multipart/form-data'):
+                elif content_type.lower().startswith('multipart/form-data'):
                     re_body_text=re_body
                     con_type=5
-                 else:
-                     re_body_text=re_body
-                     con_type=0
+                else:
+                    print "in Else "
+                    re_body_text=re_body
+                    con_type=0
+            except Exception:
+                print "Caught an exception"
+                con_type=0
+                return re_body,con_type
                 
         return re_body_text,con_type
+
+    def encEntireBody(self,req_body,iv):
+        req_body = self.encr(req_body,iv)
+        return req_body
+
+    def encr_json(self,req_body, iv,para ):
+        try:
+            json_obj = json.loads(req_body)
+            for ele in json_obj.keys(): 
+                if ele in para:
+                    temp = json_obj[ele]
+                    temp= self.encr(temp,iv)
+                    if ivf is None and ivs == '1':
+                        temp = iv + temp
+                    elif ivf is None and ivs == '2':
+                        temp = temp + iv
+                    temp = eval(mode_encod)(temp)
+                    json_obj[ele] = temp
+            json_str = json.dumps(json_obj, indent=2)
+            if json_str.count('\n') < 50:
+                req_body_text = json_str
+            else:
+                lines = json_str.splitlines()
+                req_body_text = "%s\n(%d lines)" % ('\n'.join(lines[:50]), len(lines))
+        except Exception:
+            req_body_text = req_body
+            print (traceback.format_exc())
+        return req_body_text
+
+    def encr_xml(self,re_body,iv,para):
+        temp =""
+        try:
+            for i in para:
+                i.replace('\n','')
+            e = ET.fromstring(str(re_body))
+            for elt in e.iter():
+                if elt.tag in para and elt.text is not None:
+                    elt.text=self.encr(elt.text,iv)
+            #Check what to do about XML Version and encoding
+            temp = ET.tostring(e, encoding='utf8', method='xml')
+            if ivf is None and ivs == '1':
+                temp = iv + temp
+            elif ivf is None and ivs == '2':
+                temp = temp + iv
+            temp = eval(mode_encod)(temp)
+        except Exception:
+            print (traceback.format_exc())
+            temp  = re_body
+        return temp
+
+    def encr_www(self,re_body,iv,para):
+
+        elem_dic=dict(x.split('=') for x in re_body.split("&"))
+        for i in elem_dic:
+            if elem_dic[i] in para:
+                elem_dic[i]=self.encr(elem_dic[i],iv)
+        temp = ""
+        for key,value in elem_dic:
+            temp = temp + key + '=' + value + '&'
+        temp1 = temp [:-1]
+        if ivf is None and ivs == '1':
+            temp1 = iv + temp1
+        elif ivf is None and ivs == '2':
+            temp1 = temp1 + iv
+        temp = eval(mode_encod)(temp1)
+        return temp1
 
     def encryption(self, req, req_body):
         #Input of parameters. ivNum contains the number of IVs in the request. If different parameters
         #contain different IV, then obtained while encryption
         iv = self.extractIV()
         
-
+        req_body_text = None
         #Encryption of full request body:
         if (int(mxen)==1):
             req_body = getBodyEnc(req_body)
-            req_body = self.encr(req_body,iv)
-            if (ivs == '1'):
-                req_body = iv + req_body
-            elif (ivs == '2'):
-                req_body = req_body + iv
-            req_body = eval(mode_encod)(req_body)
-            return req_body
+            req_body_text = encEntireBody(req_body,iv)
 
-        #Encryption of Parameters: Encrypts Values only: 
-        if (int(mxen)==2):
-            content_type = req.headers.get('Content-Type', '')
-            #Handler if Content-Type is application/json:
-            if content_type.startswith('application/json'):
-                req_body_text = None
-                try:
-                    #Loads the request body in a dictionary json_obj. Traverses keys and values.
-                    #Encrypts the given value if user inputs Y
-                    json_obj = json.loads(req_body)
-                    for ele in json_obj.keys(): 
-                        #choice =raw_input("Encrypt " + ele + "(Y/N): ")
-                        choice='y'
-                        if (choice=='Y' or choice=='y'):
-                            #Calls getBodyEnc to get request body to encrypt (If IV is present in the request, temp
-                            # temp will contain the text to be encrypted. After Encryption, IV is concatenated 
-                            # according to the position specified in'ivs'.)
-                            temp = self.getBodyEnc(json_obj[ele])
-                            print temp
-                            temp= self.encr(temp,iv)
-                            if (ivs == '1'):
-                                temp = iv + temp
-                            elif (ivs == '2'):
-                                temp = temp + iv
-                            json_obj[ele] = eval(mode_encod)(temp)
-                            print json_obj[ele]
-                        elif (not choice=='N' or not choice == 'n'):
-                            print "Invalid Choice"
-                    json_str = json.dumps(json_obj, indent=2)
-                    #print json_str
-                    if json_str.count('\n') < 50:
-                        req_body_text = json_str
-                    else:
-                        lines = json_str.splitlines()
-                        req_body_text = "%s\n(%d lines)" % ('\n'.join(lines[:50]), len(lines))
-                except Exception:
-                    #print "hi exception"
-                    req_body_text = req_body
-                    print (traceback.format_exc())
-                print req_body_text
-                return req_body_text
+        #Encryption of Parameters: Encrypts all values only: 
+        if (int(mxen)==2 or int(mxen) == 3):
+            req_body = self.getBodyEnc(req_body)
+            req_body, content_type = self.content_type(req,req_body)
+            filePara = open('multiple.txt','r')
+            para = filePara.readlines()
+            for i in para:
+                i.replace('\n','')
+            if content_type == 1:
+                req_body_text = self.encr_json(req_body,iv,para)
+            elif  content_type == 2:
+                req_body_text = req_body #Insert code here
+            elif content_type == 3:
+                req_body_text = self.encr_xml(req_body,iv,para)
+            elif content_type == 4:
+                req_body_text = self.encr_www(req_body,iv,para)
+            elif content_type == 5:
+                req_body_text = req_body #Insert code here
             else:
-                #Handler if the content-type is not application/json. File 'reqHandler' is opened and request 
-                #is written. The user is required to encrypt the plaintext required and paste back in the file.
-                #'e': encryption. 'q': stop encryption loop
-                reqFile = open('reqHandler.dat', 'w+')
-                reqFile.write(str(req_body))
-                reqFile.close()
-                choice =raw_input("Enter e for encryption of text and q to exit")
-                while (choice!='q'):
-                    encText = raw_input("Enter text to encrypt")
-                    encText = self.getBodyEnc(encText)
-                    encText = self.encr(encText,iv)
-                    if (ivs == '1'):
-                        encText = iv + encText
-                    else:
-                        encText = encText + iv
-                    encText = eval(mode_encod)(encText)
-                    print encText
-                    choice = raw_input("Do you want to continue? e(encrypt)/q (quit)")
-                reqFile = open('reqHandler.dat', 'r')
-                req_body_text = reqFile.read()
-                reqFile.close()
-                print req_body_text
-                return req_body_text
-
+                pass
+                # #Handler if the content-type is not application/json. File 'reqHandler' is opened and request 
+                # #is written. The user is required to encrypt the plaintext required and paste back in the file.
+                # #'e': encryption. 'q': stop encryption loop
+                # reqFile = open('reqHandler.dat', 'w+')
+                # reqFile.write(str(req_body))
+                # reqFile.close()
+                # choice =raw_input("Enter e for encryption of text and q to exit")
+                # while (choice!='q'):
+                #     encText = raw_input("Enter text to encrypt")
+                #     encText = self.getBodyEnc(encText)
+                #     encText = self.encr(encText,iv)
+                #     if (ivs == '1'):
+                #         encText = iv + encText
+                #     else:
+                #         encText = encText + iv
+                #     encText = eval(mode_encod)(encText)
+                #     print encText
+                #     choice = raw_input("Do you want to continue? e(encrypt)/q (quit)")
+                # reqFile = open('reqHandler.dat', 'r')
+                # req_body_text = reqFile.read()
+                # reqFile.close()
+            filePara.close()   
+            
+            print "final Return value:"+ req_body_text
+            return req_body_text
 
 
     def request_handler(self, req, req_body):
         print "Request--"
-        for headers in req.headers:
-            print headers
-        print ""
         print req_body
+        print "--------------------------------------"
+        if encrdecr == 'e':
+            return self.encryption(req,req_body)
+        else:
+            return self.decryption(req,req_body)
 
         
     #Encryption Functions. User has to pass the required parameteres only.
@@ -556,365 +632,8 @@ class ProxyRequestHandler(BaseHTTPRequestHandler):
             elif (cmode == 'CFB'):
                return enc_dec_des3.des3_cfb_enc(keyf, msg, iv, padding, int(segment_size))      
 
-
-
-    def get_res_body_text(self,res,res_body):
-        typ=0
-        if res_body is not None:
-            res_body_text = None
-            content_type = res.headers.get('Content-Type', '')
-
-            if content_type.startswith('application/json'):
-                try:
-                    json_obj = json.loads(res_body)
-                    json_str=json.dumps(json_obj,indent=2)
-                    if json_str.count('\n') < 50:
-                        res_body_text = json_str
-                    else:
-                        lines = json_str.splitlines()
-                        res_body_text = "%s\n(%d lines)" % ('\n'.join(lines[:50]), len(lines))
-                except ValueError:
-                    res_body_text = res_body
-                typ=1
-            elif content_type.startswith('text/html'):
-                m = re.search(r'<title[^>]*>\s*([^<]+?)\s*</title>', res_body, re.I)
-                if m:
-                    h = HTMLParser()
-                    print with_color(32, "==== HTML TITLE ====\n%s\n" % h.unescape(m.group(1).decode('utf-8')))
-                typ=0
-            elif content_type.startswith('text/') and len(res_body) < 1024:
-                res_body_text = res_body
-                typ=2
-        return res_body_text,typ
-        
-    #This function will return the name of decrypting function to be called and the block size.
-    def get_decryption_function(self):
-
-            print colored("Enter Decryption Mode. Possible modes are Aes/Des/Des3-(ECB,CBC,CFB). Input Example- aes_cbc","green")
-            dmode=raw_input()
-            
-            #Setting Block Mode from input
-            block=16 if "aes" in dmode else 8
-            
-            #Forming decryption function name from input
-            dmode=dmode+"_dec"
-            decryption_final="enc_dec_"+dmode.split("_")[0]+'.'+dmode
-            
-            return decryption_final,block
-
-    def get_decryption_key(self):
-
-            print colored("Enter Decryption Key","green")
-            dkey=raw_input()
-            return dkey
-
-    def get_padding_mode(self):
-
-            print colored("Enter Padding Mode.(Bit,CMS,ZeroLen,Null,ISO,Random). See comments for explanation.","green")
-            # MODES ={
-            # (0,'Bit')     : 'BitPadding: Pad with 0x80 (10000000) followed by zero (null) bytes. Described in ANSI X.923 and ISO/IEC 9797-1',
-            # (1,'CMS')     : 'Also called PKCS#5/PKCS#7. Pad with bytes all of the same value as the number of padding bytes. Default mode used in Cryptographic Message Syntax (CMS as defined in RFC 5652, PKCS#5, PKCS#7 and RFC 1423 PEM)',
-            # (2,'ZeroLen') : 'Also called ANSI X.923. Pad with zeroes except make the last byte equal to the number (length) of padding bytes',
-            # (3,'Null')    : 'Also called Zero Padding.Pad with null bytes. Only for encrypting of text data.',
-            # (4,'ISO')   : 'Known as ISO/IEC 7816-4. Pad with 80 (Hexadecimal) followed by 00.Identical to the bit padding scheme.',
-            # (5,'Random')  : 'Also called -ISO 10126. Pad with random bytes + last byte equal to the number of padding bytes'         
-            # }
-            mode=raw_input()
-            return mode
-
-    def get_encoding_type(self):
-
-            print colored("Enter Encoding type.(Base64Dec/AsciiHexDec/BinDec/OctDec/HexDec)","green")
-            dencod=raw_input()
-            #Forming Decoding Fucnction. dencod is the final function to be called for decoding.
-            dencod="EncDec."+dencod
-            return dencod
-
-    def get_iv_info(self,decryption_final,block):
-
-        iv_info=None
-        if "ecb" not in decryption_final:
-                #Asking for IV input as mode is not ECB
-                print colored("Is IV appended with ciphertext? (y or n)","green")
-                iv_check=raw_input()
-                iv_info=raw_input("Enter whether IV is appended at beginning or at end, IV length is "+str(block)+".\nEnter beg/end\n") if iv_check == 'y' else raw_input("Enter decoded IV")
-        return iv_info
-
-
-    #This function will be called if reponse is of json type
-    def response_is_json(self,res,res_body):
-        # Parameters-Map
-        # decryption_final= Name of decryption function
-        # block= Block size in the decryption function
-        # dkey= Decryption Key
-        # Mode= Padding Mode
-        # dencod= Name of Decoding function
-        # iv_info= Info about position of IV or in some cases IV itself
-        # seg_size= Segment Sizem which is required in modes like CFB
-        # ct= Cipher Text (Data) to be decrypted
-        # decoded_value= The decoded string
-        # iv = Actual IV (decoded) that will be used for decryption.
-
-            #The response is of Json Type, so now we will ask for required parameters.
-            print colored("The response is of json/dictionary\n","green")
-            body=json.loads(res_body)
-            print(body)
-
-            #print colored("\nPress 0 for decrypting entire body (keys+values)? \nPress 1 for decrypting only values.\nPress 2 for exit","green")
-            #decision=raw_input()
-            # if decision=='2':
-            #     os._exit(1)
-            #     quit()
-            decision=1
-            # Original Code
-            # decryption_info=self.get_decryption_function()
-            # decryption_final=decryption_info[0]
-            # block=decryption_info[1]
-            # dkey=self.get_decryption_key()
-            # mode=self.get_padding_mode()
-            # dencod=self.get_encoding_type()
-            global cipMethod
-            global cmode
-            global keyf
-            global mode_enco
-            global padding
-            global ivs
-            global ivf
-            global segment_size
-
-            decryption_final='enc_dec_'+cipMethod.lower()+"."+cipMethod.lower()+"_"+cmode.lower()+"_dec"
-            block=16 if "aes" in decryption_final else 8
-
-            dkey=keyf
-            mode=padding
-            dencod="EncDec."+mode_enco+"Dec"
-            #Asking for function specific parameters. No IV for ECB and Segment Size for CFB.      
-            #iv_info=global get_iv_info(decryption_final,block)
-            iv_info=ivs # 1 for start, 2 for end, None if no IV
-            if iv_info is not None:
-                iv_info='beg' if iv_info=='1' else 'end'
-            #Segment size will only be asked if CFB Mode is there
-            #seg_size=raw_input("Enter Segment Size. Must be iv_info multiple of 8. If left blank, then 8 will be taken by default") if "cfb" in decryption_final else None
-            seg_size=segment_size
-            #Decryption Starts here based on choices entered before.
-            if decision=='0':    
-            #Entire Response Body (Keys and Values) will be decrypted now.
-            #ct= Actual Data to be decrypted
-            #iv= IV
-                
-                for key, value in body.iteritems():
-                    #ct= Actual Data to be decrypted
-                    #iv= IV
-
-                    #Decrypting all keys
-                    decoded_key=eval(dencod)(key)
-                    if iv_info is not None:
-                        if iv_info=='beg' or iv_info== 'end':
-                            #Extracting IV from Cipher Text
-                            iv=decoded_key[0:block] if iv_info=='beg' else decoded_key[-block:]
-                            ct=decoded_key[16:] if iv_info =='beg' else decoded_key[0:len(decoded_key)-block]
-                        else: 
-                            iv=iv_info
-                            #Assuming entire decoded data is to be decrypted here.
-                            ct=decoded_key
-
-                        key=eval(decryption_final)(dkey,ct,iv,mode) if seg_size == None else eval(decryption_final)(dkey,ct,iv,mode,seg_size)
-                    
-                    else:
-                        #If this is called, then no IV was required. Meaning most probably ECB Mode.                           
-                        key=eval(decryption_final)(dkey,decoded_key,mode)
-
-
-                    #Decrypting all values                        
-                    decoded_value=eval(dencod)(value)
-                    if iv_info is not None:
-                        if iv_info=='beg' or iv_info=='end':
-                            #Extracting IV from Cipher Text
-                            iv=decoded_value[0:block] if iv_info=='beg' else decoded_value[-block:]
-                            ct=decoded_value[16:] if iv_info =='beg' else decoded_value[0:len(decoded_value)-block]
-                        else: 
-                            iv=ivf
-                            ct=decoded_value
-
-                        value=eval(decryption_final)(dkey,ct,iv,mode) if seg_size == None else eval(decryption_final)(dkey,ct,iv,mode,seg_size)
-                    
-                    else:
-                        #If this is called, then no IV was required. Meaning most probably ECB Mode.
-                        value=eval(decryption_final)(dkey,decoded_value,mode)
-
-
-                res_body_text=body
-
-            else:
-
-            #Only values will be decrypted
-                #print colored("Decrypt all values(y/n)?","green")  
-                #ans=raw_input()
-                ans='y'
-                if ans=='y':
-                #Decrypting all values
-                    for key in body:
-                        decoded_value=eval(dencod)(body[key])
-                        print(len(decoded_value))
-                        if iv_info is not None:
-                            if iv_info=='beg' or iv_info=='end':
-                                #Extracting IV from Cipher Text
-                                iv=decoded_value[0:block] if iv_info=='beg' else decoded_value[-block:]
-                                ct=decoded_value[16:] if iv_info =='beg' else decoded_value[0:len(decoded_value)-block]
-                            else: 
-                                iv=ivf
-                                ct=decoded_value
-
-                            body[key]=eval(decryption_final)(dkey,ct,iv,mode) if seg_size == None else eval(decryption_final)(dkey,ct,iv,mode,seg_size)
-                        
-                        else:
-                            #If this is called, then no IV was required. Meaning most probably ECB Mode.
-                            body[key]=eval(decryption_final)(dkey,decoded_value,mode)
-                
-                else:
-                    list_val=[]
-                    print colored("Enter all keys whose values have to be decrypted","green")
-                    list_val.append(raw_input())
-                    #Here only specific values will be encrypted.
-                    
-                    for i in list_val:
-                        decoded_value=eval(dencod)(body[i])
-
-                        if iv_info is not None:
-                            if iv_info =='beg' or iv_info=='end':
-                                #Extracting IV from Cipher Text
-                                iv=decoded_value[0:block] if iv_info=='beg' else decoded_value[-block:]
-                                ct=decoded_value[16:] if iv_info =='beg' else decoded_value[0:len(decoded_value)-block]
-
-                            else: 
-                                iv=iv_info
-                                #Assuming entire decoded data is to be decrypted here.
-                                ct=decoded_value
-                            body[i]=eval(decryption_final)(dkey,ct,iv,mode) if seg_size == None else eval(decryption_final)(dkey,ct,iv,mode,seg_size)
-                        
-                        else:
-                            #If this is called, then no IV was required. Meaning most probably ECB Mode.
-                            body[i]=eval(decryption_final)(dkey,decoded_value,mode)
-
-
-
-                res_body_text=body
-
-
-            return json.dumps(res_body_text,indent=2).replace("\\\"","")
-
-
-    def response_custom(self,res,res_body_text):
-        # Parameters-Map
-        # decryption_final= Name of decryption function
-        # block= Block size in the decryption function
-        # dkey= Decryption Key
-        # Mode= Padding Mode
-        # dencod= Name of Decoding function
-        # iv_info= Info about position of IV or in some cases IV itself
-        # seg_size= Segment Sizem which is required in modes like CFB
-        # ct= Cipher Text (Data) to be decrypted
-        # decoded_value= The decoded string
-        # iv = Actual IV (decoded) that will be used for decryption.
-
-
-        #This function will handle non json type responses.
-        print colored("\nThe Content Type is "+res.headers.get('Content-Type', ''),"green")
-        file = open("response.txt","w")
-        file.write(str(res_body_text))
-        file.close() 
-        print colored("The response is saved in a file- response.txt. Please see it and select words to decrypt.","green")
-        print colored("You will have to enter the words in program to be decrypt them manually.","green")
-        print colored("After you have decrypted the required words and made changes to txt file. Select Exit","green")
-        print colored("Press 1 to start decryption. Press 2 to Exit")
-        ext=raw_input()
-        global cipMethod
-        global cmode
-        global keyf
-        global mode_enco
-        global padding
-        global ivs
-        global ivf
-        global segment_size
-        while ext==str(1):
-            #Fetching all required parameters that will be required later.
-            # decryption_info=self.get_decryption_function()
-            # decryption_final=decryption_info[0]
-            # block=decryption_info[1]
-                
-            # dkey=self.get_decryption_key()
-            # mode=self.get_padding_mode()
-            # dencod=self.get_encoding_type()
-            decryption_final='enc_dec_'+cipMethod.lower()+"."+cipMethod.lower()+"_"+cmode.lower()+"_dec"
-            block=16 if "AES" in decryption_final else 8
-
-            dkey=keyf
-            mode=padding
-            dencod="EncDec."+mode_enco+"Dec"
-            #Asking for function specific parameters. No IV for ECB and Segment Size for CFB.      
-            #iv_info=global get_iv_info(decryption_final,block)
-            iv_info=ivs # 1 for start, 2 for end, None if no IV
-            if iv_info is not None:
-                iv_info='beg' if iv_info=='1' else 'end'
-            if ivf != None:
-                iv_info=iv
-            #Segment size will only be asked if CFB Mode is there
-            #seg_size=raw_input("Enter Segment Size. Must be iv_info multiple of 8. If left blank, then 8 will be taken by default") if "cfb" in decryption_final else None
-            seg_size=segment_size
-            while ext==str(1):
-                print colored("Enter word to be decrypted","green")
-                word=raw_input()
-                if iv_info is not None:
-                    if iv_info=='beg' or iv_info=='end':
-                        #Extracting IV from Cipher Text
-                        iv=decoded_value[0:block] if iv_info=='beg' else decoded_value[-block:]
-                        ct=decoded_value[16:] if iv_info =='beg' else decoded_value[0:len(decoded_value)-block]
-                    else: 
-                        #In this case, iv was manually entered by user.
-                        iv=iv_info
-                        ct=decoded_value
-                    value=eval(decryption_final)(dkey,ct,iv,mode) if seg_size == None else eval(decryption_final)(dkey,ct,iv,mode,seg_size)
-                
-                else:
-                    #If this is called, then no IV was required. Meaning most probably ECB Mode.
-                    value=eval(decryption_final)(dkey,decoded_value,mode)
-                
-                print colored("Decrypted value is"+value,"green")
-                print colored("1)Decrypt more words\n2)Exit")
-                ext=raw_input()
-                if ext=='2':
-                    break
-        print colored("Please save all changes in response.txt. Press 3 when done","green")
-        final=raw_input()
-        if final=='3':
-            file=open("response.txt","r")
-            res_body_text=file.read()
-
-        return res_body_text
-
-
-
     def response_handler(self, res ,res_body):
-
-        #key="441538f57b510c0512f594c213cc523c"
-        #This function fetches response body and type. Type= 0 For html, 1 for json, 2 for others(text/)
-        response_list=self.get_res_body_text(res,res_body)
-        res_body_text=response_list[0]
-        type_res=response_list[1]
-        print colored("\n-------------------------------------------------","green")
-        print colored("The response is printed below-",'green')
-        print(res_body_text)
-        print("")
-        if type_res==1:
-            #Handling Json Responses
-            res_body_text=self.response_is_json(res,res_body_text)
-        else:
-            #Handling Other Responses
-            res_body_text=self.response_custom(res,res_body_text)
-        return res_body_text
-
-
-
+        pass
 
     def save_handler(self, req, req_body, res, res_body):
         self.print_info(req, req_body, res, res_body)
@@ -985,7 +704,7 @@ if __name__ == '__main__':
         mode_enco = sys.argv[5] #raw_input("Mode of Encoding: Base64/AsciiHex/Bin/Oct/Hex/URL: ")
         dic['mode_enco'] = mode_enco
         mode_encod = "EncDec." + mode_enco + "Enc"
-        mxen= str(sys.argv[6]) #raw_input("Mode of Encryption: Full request body(1) or parameters(2): ")
+        mxen= str(sys.argv[6]) #("1)Encrypt/Decrypt Enitre body\n2)Encrypt/Decrypt all values in json/xml\n3)Encrypt/Decrypt multiple parameters\n")
         dic['mxen'] = mxen
         encrdecr = str(sys.argv[7])  # e for encryption, d for decryption
         dic['encrdecr'] = encrdecr

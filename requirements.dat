@@ -3,7 +3,7 @@
   "mxen": "2", 
   "cmode": "CBC", 
   "mode_enco": "Base64", 
-  "ivf": "aaaaaa", 
+  "ivf": null, 
   "keyf": "441538f57b510c0512f594c213cc523c", 
   "padding": "CMS", 
   "encrdecr": "e", 
