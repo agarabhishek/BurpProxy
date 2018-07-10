@@ -1,0 +1,30 @@
+--------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------REQUEST:POST https://fglpg001.futuregenerali.in/LF.MB.CancerCareToken/api/Login/AgentLoginCredential_V3 HTTP/1.1
+Content-Type: application/json; charset=UTF-8
+User-Agent: okhttp/3.10.0
+Content-length: 73
+Host: fglpg001.futuregenerali.in
+Accept-Encoding: gzip, deflate
+
+==== REQUEST BODY ORIGNAL ====
+{"Request":"9wocjoHBIKlIMtRFMn5Xqnmxx7w/bz5gKAEtGIYwIKwSTp+elO99Qxrh3ZEoQPMCFZl3ErNiEptr\nsOaZ+LcwQdnVIj5PU4WVShhn6fBHS/Y="}
+==== REQUEST BODY MODIFIED ====
+{
+  "Request": "{"UserID":"4760","Password":"pass@4760","LoginType":0}"
+}
+RESPONSE:HTTP/1.1 200 OK
+Cache-Control: no-cache
+Pragma: no-cache
+Content-Type: application/json; charset=utf-8
+Expires: -1
+Date: Tue, 10 Jul 2018 11:04:18 GMT
+Content-Length: 574
+
+==== RESPONSE BODY ORIGINAL ====
+{
+  "Response": "{"Status":"SUCCESS","AgentId":"4760","AgentName":"BB-HYDERABAD-AMEERPET-4760","AgentContactNumber":"","UseridLock":null,"AgentType":null,"Token":"eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJ1bmlxdWVfbmFtZSI6IjQ3NjAiLCJuYmYiOjE1MzEyMjA2NTgsImV4cCI6MTUzMTMwNzA1OCwiaWF0IjoxNTMxMjIwNjU4LCJpc3MiOiJodHRwOi8vbG9jYWxob3N0OjUwMTkxIiwiYXVkIjoiaHR0cDovL2xvY2FsaG9zdDo1MDE5MSJ9.BxtQ9H7sGCwyVpOdCgUyqys5yzPlE_bQY-wz237b74M","ErroeMessage":"Invalid Credentials","Attempted":"0","LockedTime":"7/5/2018 5:44:00 PM","objshowproduct":[{"ProductType":"CAN","Rate":"ONLINE"}]}"
+}
+==== RESPONSE BODY MODIFIED ====
+{
+  "Response": "3slIwhRImyLQI9LR7NmKAfTo8KsuTIfjuPNZQmWRtyPxIPSitVhLMFIJ9tFCV9r+nkFA9zhGNySovAs8kyi6/6FbKDK0YJtlu/X+1/doGD1olbedq57CqNzD2wIpIZbYtli9Ppph7otaZLhcWMZTZxesQAu2NVvfQvVt6qlzZkOhKFUvlXixk3u/uU9rAhZSoFera2Fl7/0/ld95N8F54tR25THUcdty5vlTnRIziOB9Cr6Sxu5A1zfNgwh7Es56m3S9bCyxyCpA6jV/Frd1RDbJRtOlI1pIFRHyj/qlNIyZssKgep389yKovSr39GhIFsD91bI2PTrndtKB4V4u0n5Fkxr7FUIYd0RmLe/aeJZtTkuOSATG3tjhk3mRkZJwP0dlbCGRpPL52uXHXm+1eEz8VqM0e6nntEfN2W03Yax0O3w16wJyi1d/QsmhPDZhAq1ysQX4vpi/Vc85H845bUoMn6EyDrZoIszfABXLmduacyEmNrwL18DMBSMT/GMagrw5CtLdD0YlHcNlmMUgjA4UkaqvfHHuH8ym85kK9qDPp6Cv9BnvIxcZh4EqTKqu4PT4ia1XRyk6hyApAEqTtsEoxuXsbmBNSDj6Iz4khieZUahFolkFt2XTso6zen7VU8MKHVYXJNUeabeE60enaXs2qWc4ndgZeObubdiz/GbTJRdiWeAhLkfuTtGtU0KPUdLiq6G23qjb4H55bTkRUKENcrNKIsCD0KeamoGDWThC58rZZxSPXFM7IfopHmSK"
+}
+--------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------
