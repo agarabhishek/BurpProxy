@@ -1,0 +1,30 @@
+--------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------REQUEST:POST http://fglpg001.futuregenerali.in/LF.MB.CancerCareToken/api/Login/AgentLoginCredential_V3 HTTP/1.1
+content-type: application/json; charset=UTF-8
+user-agent: okhttp/3.10.0
+Content-length: 127
+Host: fglpg001.futuregenerali.in
+Accept-Encoding: gzip, deflate
+
+==== REQUEST BODY ORIGNAL ====
+{
+  "Request": "{"UserID":"4760","Password":"pass@4760","LoginType":0}"
+}
+==== REQUEST BODY MODIFIED ====
+{
+  "Request": "9wocjoHBIKlIMtRFMn5XqoGYoNm49G8QYsklEuhtr2txGO6/f3JFeaF3BCUsFyMHgC1iMHZTAG5hM6EWU8brWu9O9kLM56AqIzlcckqb7+w="
+}
+RESPONSE:HTTP/1.1 200 OK
+Cache-Control: no-cache
+Pragma: no-cache
+Content-Type: application/json; charset=utf-8
+Expires: -1
+Date: Tue, 10 Jul 2018 11:04:18 GMT
+Content-Length: 783
+
+==== RESPONSE BODY ORIGINAL ====
+{"Response":"3slIwhRImyLQI9LR7NmKAYO0Z2sw4pg0FW3L5ynG1oQhvpznjd6w5nO+6RvGtoY+cpaaRKrSdqsrJ0AJEUM1VB9ypUus3wHdFfXqIs+6EZRyuDYIREVocC1hcCr5tUv8vKFmNM3kEoH/+HgPmdFRS5eY4mQSbvzSzHiEGHsTGMN7x1ZLWLVm822UlHEOIx/f2dteh7b0CSJy7xg0KuktgcjPOeh+Dfwy2I/JsnaBSbBZEgEOHkyMI3K0MhXpYIyankg2x3Ztqi2/D0Hg7DdEBBLl+2mZBj1lbhJuKKcXhwy28tYDp0Zu6lduGJ0xQwpBI8KJ2vdto7quL6f65guWERRIkgp8+QiuWLhAVub2LVq16dZDYA5CZ0j80iggEvpu1n9hDzU1RHn8Vf/CqWCbW1ya5iFE1yHIDhylJXEqkPOzjtk44aBS8f4n8wCGklpjX2bix4dtXA/CPRqw8807D83hAaUa618KZLBN/wleAXFNuecrZ0UW/BDh+sw9C9EGNbrCS1aVs0Z0ejzniEJGXgyY1cxJHW8Na874DwunB7rN6lgq0eklT3ReNBCEMbGP/GM2enajw2sM+LEzFaTPehNdZ2I+XT4+Yh5ZH3F+sjCquZfHVWTmDAHOhRBiAg+khU2IUAi2r/QNtlAe/PmcrZ/Tj1LFSnqdR2YrX0w7OX4vT5iXxs7l6b/9yxnBsyx+xjJT+yyhZ+pmkTXR+jMc478b7R/logkKjFKVJwuGxpufjW4IoISKImsfvTuXMIeu"}
+==== RESPONSE BODY MODIFIED ====
+{
+  "Response": "{"Status":"SUCCESS","AgentId":"4760","AgentName":"BB-HYDERABAD-AMEERPET-4760","AgentContactNumber":"","UseridLock":null,"AgentType":null,"Token":"eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJ1bmlxdWVfbmFtZSI6IjQ3NjAiLCJuYmYiOjE1MzEyMjA2NTgsImV4cCI6MTUzMTMwNzA1OCwiaWF0IjoxNTMxMjIwNjU4LCJpc3MiOiJodHRwOi8vbG9jYWxob3N0OjUwMTkxIiwiYXVkIjoiaHR0cDovL2xvY2FsaG9zdDo1MDE5MSJ9.BxtQ9H7sGCwyVpOdCgUyqys5yzPlE_bQY-wz237b74M","ErroeMessage":"Invalid Credentials","Attempted":"0","LockedTime":"7/5/2018 5:44:00 PM","objshowproduct":[{"ProductType":"CAN","Rate":"ONLINE"}]}"
+}
+--------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------

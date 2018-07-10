@@ -1,0 +1,13 @@
+{
+  "cipMethod": "AES", 
+  "mxen": "3", 
+  "cmode": "CBC", 
+  "logslevel": 2, 
+  "mode_enco": "Base64", 
+  "ivf": null, 
+  "keyf": "441538f57b510c0512f594c213cc523c", 
+  "padding": "CMS", 
+  "encrdecr": "d", 
+  "ivs": "1", 
+  "segment_size": null
+}

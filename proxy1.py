@@ -131,12 +131,6 @@ class ProxyRequestHandler(BaseHTTPRequestHandler):
         req = self
         content_length = int(req.headers.get('Content-Length', 0))
         req_body = self.rfile.read(content_length) if content_length else None
-        global flag_for_url
-        global target
-
-        if flag_for_url==0:
-            target=req.headers['Host']
-            flag_for_url=1
 
         global flag_for_url
         global target
@@ -165,6 +159,7 @@ class ProxyRequestHandler(BaseHTTPRequestHandler):
         if netloc:
             req.headers['Host'] = netloc
         setattr(req, 'headers', self.filter_headers(req.headers))
+
         try:
             origin = (scheme, netloc)
             if not origin in self.tls.conns:
@@ -175,19 +170,9 @@ class ProxyRequestHandler(BaseHTTPRequestHandler):
                 else:
                     self.tls.conns[origin] = httplib.HTTPConnection(netloc, timeout=self.timeout)
                     conn = self.tls.conns[origin]
-
-            conn.set_debuglevel(2)
-            print("Finally here")
-            conn.request(self.command,path, req_body, dict(req.headers))
-            # conn.putrequest(self.command,path)
-            # header_dic=dict(req.headers)
-            # for i in header_dic:
-            #     conn.putheader(i, header_dic[i])
-            # conn.endheaders()
-            # conn.sendata(req_body)
-
+            
+            conn.request(self.command, path, req_body, dict(req.headers))
             res = conn.getresponse()
-            print("Response too")
 
             version_table = {10: 'HTTP/1.0', 11: 'HTTP/1.1'}
             setattr(res, 'headers', res.msg)
@@ -261,10 +246,9 @@ class ProxyRequestHandler(BaseHTTPRequestHandler):
 
     def filter_headers(self, headers):
         # http://tools.ietf.org/html/rfc2616#section-13.5.1
-        # hop_by_hop = ('connection', 'keep-alive', 'proxy-authenticate', 'proxy-authorization', 'te', 'trailers', 'transfer-encoding', 'upgrade')
-        # for k in hop_by_hop:
-        #     del headers[k]
-        pass
+        hop_by_hop = ('connection', 'keep-alive', 'proxy-authenticate', 'proxy-authorization', 'te', 'trailers', 'transfer-encoding', 'upgrade')
+        for k in hop_by_hop:
+            del headers[k]
 
         # accept only supported encodings
         if 'Accept-Encoding' in headers:
@@ -428,11 +412,15 @@ class ProxyRequestHandler(BaseHTTPRequestHandler):
                 else:
                     filePrint.write("==== RESPONSE BODY ORIGINAL ====\n%s\r\n" % res_body_original)
                     filePrint.write("==== RESPONSE BODY MODIFIED ====\n%s\r\n" % res_body_text)
+
                 filePrint.write("-------------------------------------------------------------------------------------------\r")
                 filePrint.write("-------------------------------------------------------------------------------------------\r")
                 filePrint.write("\r")
                 filePrint.close()
             
+
+
+
     #Function to extract IV
     def extractIV(self):
         iv = ""
@@ -588,7 +576,7 @@ class ProxyRequestHandler(BaseHTTPRequestHandler):
             i = i + 1
 
     def encr_json(self,req_body, iv,para,dic ):
-
+        print "ENCR_JSON"
         req_body_text = None
         try:
             baseStr = req_body
@@ -610,6 +598,7 @@ class ProxyRequestHandler(BaseHTTPRequestHandler):
                             temp = temp + iv
                         temp = eval(mode_encod)(temp)
                         result = result.replace(str(b),str(temp))
+            print "Json encr func returning: " +result
             req_body_text  = result
         except Exception:
             req_body_text = req_body
@@ -694,6 +683,8 @@ class ProxyRequestHandler(BaseHTTPRequestHandler):
         #Input of parameters. ivNum contains the number of IVs in the request. If different parameters
         #contain different IV, then obtained while encryption
         iv = self.extractIV()
+        print ("Now inside Encryption Function")
+        print req_body
         req_body_text = None
         #Encryption of full request body:
         if (int(mxen)==1):
@@ -709,6 +700,8 @@ class ProxyRequestHandler(BaseHTTPRequestHandler):
             
             for i in range(len(para)):
                 para[i]=para[i].replace("\n","")
+            print("Changed Here")
+            print para
             if content_type == 1:
                 fileDic  = open('reqjson.txt','r') if encrdecr == 'e' else open('resjson.txt','r')
                 dic = json.loads(fileDic.read())
@@ -725,9 +718,10 @@ class ProxyRequestHandler(BaseHTTPRequestHandler):
             else:
                 pass
             filePara.close()   
-
+            
             print "final Return value:"+ req_body_text
             return req_body_text
+
 
     def request_handler(self, req, req_body):
         global flag_side
@@ -792,8 +786,7 @@ class ProxyRequestHandler(BaseHTTPRequestHandler):
                 re_body_text=re_body
                 con_type=4
             elif content_type.lower().startswith('multipart/form-data'):
-                con_type_header=re.headers.get('Content-Type', '')
-                re_body_text=con_type_header.split("=")[1]
+                re_body_text=re_body
                 con_type=5
             else:
                 re_body_text=re_body
@@ -812,9 +805,9 @@ class ProxyRequestHandler(BaseHTTPRequestHandler):
              res_body_text=self.encryption(res,res_body)
         return res_body_text,res_body
 
+
     def decrypt(self,re,re_body):
         print("Inside Decryption Function")
-        print("Response"+"\n")
         print(re_body)
         re_list=self.get_body_text(re,re_body)
         re_body_text=re_list[0]
@@ -837,7 +830,6 @@ class ProxyRequestHandler(BaseHTTPRequestHandler):
         global flag_for_mul_inp
         global flag_side
         
-        # Done as Base Request is needed for forming proper json formation before encryption.
         if flag_side==0:
             file=open("reqjson.txt","w")
             file.write(re_body_text)
@@ -926,31 +918,7 @@ class ProxyRequestHandler(BaseHTTPRequestHandler):
                 return original
 
         def decrypt_multipart_form(parameters,re_body_text):
-            file=open("temp.txt","r")
-            a=file.readlines()
-            boundary=re_body_text
-            lis=""
-            i=0
-            while i<len(a)-1:
-                if boundary in a[i]:
-                    lis=lis+a[i]
-                    while a[i] != '\n':
-                        lis=lis+a[i]
-                        i=i+1
-                    lis=lis+a[i]
-                    i=i+1
-                    temp=""
-                    while boundary not in a[i]:
-                        temp=temp+a[i]
-                        i=i+1
-                    if temp in parameters:
-                        temp=temp[:-1]
-                        temp=decryption(temp)
-                        temp=temp+'\n'
-                    lis=lis+temp
-                file.close()
-            return lis
-
+            pass
         
         def fetch_parameters(list_parameters,flag_side):
             if flag_side==0:
@@ -1015,37 +983,18 @@ class ProxyRequestHandler(BaseHTTPRequestHandler):
                     return original
 
             if con_type==5:
-                original=re_body
-                file=open("temp.txt","w")
-                file.write(original)
-                file.close()
-                file=open("temp.txt","r")
-                a=file.readlines()
-                lis=list()
-                boundary=re_body_text
-                i=0
-                while i<len(a)-1:
-                    if boundary in a[i]:
-                        while a[i] != '\n':
-                            i=i+1
-                        i=i+1
-                        temp=""
-                        while boundary not in a[i]:
-                            temp=temp+a[i]
-                            i=i+1
-                        temp=temp[:-1]
-                        lis.append(temp)
-                parameters=fetch_parameters(lis,flag_side)
-                return decrypt_multipart_form(parameters,re_body)
+                pass
+                # TODO for multipart/form-data
 
         if mxen =='3':
             print("It came here")
             if flag_for_mul_inp==0:
-                print colored("If json/xml, enter keys. If others, enter values.Separate by a single space.","green")
+                print colored("Please enter the keys the values of which have to decrypted. Separate by a single space\n","green")
                 lis_of_parameters=raw_input()
                 list_parameters=lis_of_parameters.split()
                 parameters=fetch_parameters(list_parameters,flag_side)
                 flag_for_mul_inp=1
+                print("This should also be printed only once otherwise go fuck yourself")
             else:
                 if flag_side==0:
                     file=open("reqpara.txt","r")
@@ -1065,10 +1014,8 @@ class ProxyRequestHandler(BaseHTTPRequestHandler):
                 return decrypt_www_form_urlencoded(parameters,re_body_text)
 
             if con_type==5:
-                file=open("temp.txt","w")
-                file.write(re_body)
-                file.close()
-                return decrypt_multipart_form(parameters,re_body_text)
+                # TODO for urlencod
+                pass
         else:
             sys.exit("Please enter valid mxen")
 
@@ -1114,6 +1061,7 @@ if __name__ == '__main__':
     flag_for_mul_inp=0
     fname = Path("requirements.dat")
     if (fname.exists()):
+        print "Inputs"
         fileReq = open("requirements.dat",'r')
         dic = json.loads(fileReq.read())
         cipMethod = dic['cipMethod']
@@ -1132,6 +1080,7 @@ if __name__ == '__main__':
             encrdecr ='d'
         else:
             encrdecr = 'e'
+        print encrdecr
         fileReq.close()
     else:
         dic = {}
