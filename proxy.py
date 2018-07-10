@@ -35,7 +35,7 @@ def join_with_script_dir(path):
 
 
 class ThreadingHTTPServer(ThreadingMixIn, HTTPServer):
-    address_family = socket.AF_INET6
+    address_family = socket.AF_INET
     daemon_threads = True
 
     def handle_error(self, request, client_address):
@@ -131,7 +131,6 @@ class ProxyRequestHandler(BaseHTTPRequestHandler):
         req = self
         content_length = int(req.headers.get('Content-Length', 0))
         req_body = self.rfile.read(content_length) if content_length else None
-
         global flag_for_url
         global target
 
@@ -159,30 +158,29 @@ class ProxyRequestHandler(BaseHTTPRequestHandler):
         if netloc:
             req.headers['Host'] = netloc
         setattr(req, 'headers', self.filter_headers(req.headers))
-
         try:
             origin = (scheme, netloc)
             if not origin in self.tls.conns:
-                if scheme == 'https':
-                    if encrdecr=='d':
-                        self.tls.conns[origin] = httplib.HTTPSConnection("localhost", 3333)
-                        conn = self.tls.conns[origin]
-                        conn.set_tunnel(netloc)
-                    else:
-                        self.tls.conns[origin] = httplib.HTTPSConnection(netloc, timeout=self.timeout)
-                        conn = self.tls.conns[origin]
+                if encrdecr=='d':
+                    self.tls.conns[origin] = httplib.HTTPConnection("localhost", 3333)
+                    conn = self.tls.conns[origin]
+                    conn.set_tunnel(netloc)
                 else:
-                    if encrdecr=='d':
-                        self.tls.conns[origin] = httplib.HTTPConnection("localhost", 3333)
-                        conn = self.tls.conns[origin]
-                        conn.set_tunnel(netloc)
-                    else:
-                        self.tls.conns[origin] = httplib.HTTPConnection(netloc, timeout=self.timeout)
-                        conn = self.tls.conns[origin]
-            
-            conn.request(self.command, path, req_body, dict(req.headers))
-            res = conn.getresponse()
+                    self.tls.conns[origin] = httplib.HTTPConnection(netloc, timeout=self.timeout)
+                    conn = self.tls.conns[origin]
 
+            conn.set_debuglevel(2)
+            print("Finally here")
+            conn.request(self.command,path, req_body, dict(req.headers))
+            # conn.putrequest(self.command,path)
+            # header_dic=dict(req.headers)
+            # for i in header_dic:
+            #     conn.putheader(i, header_dic[i])
+            # conn.endheaders()
+            # conn.sendata(req_body)
+
+            res = conn.getresponse()
+            print("Response too")
             version_table = {10: 'HTTP/1.0', 11: 'HTTP/1.1'}
             setattr(res, 'headers', res.msg)
             setattr(res, 'response_version', version_table[res.version])
@@ -255,9 +253,10 @@ class ProxyRequestHandler(BaseHTTPRequestHandler):
 
     def filter_headers(self, headers):
         # http://tools.ietf.org/html/rfc2616#section-13.5.1
-        hop_by_hop = ('connection', 'keep-alive', 'proxy-authenticate', 'proxy-authorization', 'te', 'trailers', 'transfer-encoding', 'upgrade')
-        for k in hop_by_hop:
-            del headers[k]
+        # hop_by_hop = ('connection', 'keep-alive', 'proxy-authenticate', 'proxy-authorization', 'te', 'trailers', 'transfer-encoding', 'upgrade')
+        # for k in hop_by_hop:
+        #     del headers[k]
+        pass
 
         # accept only supported encodings
         if 'Accept-Encoding' in headers:
@@ -416,104 +415,155 @@ class ProxyRequestHandler(BaseHTTPRequestHandler):
         stack = []
         global i
         i=0
-        while (i<len(a)):
-            if (a[i]=='{'):
-                b = b+ a[i]
-                if (stack.count('{')!=0):
-                    count =1
-                    i =i +1
-                    stack.append('{')
-                    while count!=0:
-                        if a[i] == '{':
-                            b = b + a[i]
-                            count = count +1
-                            stack.append('{')
-                        elif (a[i]== '\"'):
-                            b = b + '\''
-                        elif (a[i] == '}'):
-                            b = b + a[i]
-                            stack.pop(len(stack)-1)
-                            count  = count -1
-                        else:
-                            b = b + a[i]
-                        i =i+1
-                    i = i-1
+        try:
+            while (i<len(a)):
+                if (a[i]=='{'):
+                    b = b+ a[i]
+                    if (stack.count('{')!=0):
+                        count =1
+                        i =i +1
+                        stack.append('{')
+                        while count!=0:
+                            if a[i] == '{':
+                                b = b + a[i]
+                                count = count +1
+                                stack.append('{')
+                            elif (a[i]== '\"'):
+                                b = b + '\''
+                            elif (a[i] == '}'):
+                                b = b + a[i]
+                                stack.pop(len(stack)-1)
+                                count  = count -1
+                            else:
+                                b = b + a[i]
+                            i =i+1
+                        i = i-1
+                    else:
+                        stack.append(a[i])
+                elif (a[i]=='}'):
+                    b = b + a[i]
+                    stack.pop(len(stack)-1)
                 else:
-                    stack.append(a[i])
-            elif (a[i]=='}'):
-                b = b + a[i]
-                stack.pop(len(stack)-1)
-            else:
-                b = b + a[i]
-            i = i +1
+                    b = b + a[i]
+                i = i +1
+        except Exception:
+            print "Exception in extract_dic"
+            return a
         return b
-    # Function to return content_type and req_body.
-    # handles -text/plain, text/html, application/json, application/xml, text/xml, application/x-www-form-urlencoded
-    # multipart/form-data (Think can be split about =), multipart/byteranges, application/xhtml+xml
-    # def content_type(self, re, re_body):
-    #     con_type=0
-    #     if re_body is not None:
-    #         re_body_text=None
-    #         try: 
-    #             content_type=re.headers.get('Content-Type','')
-
-    #             if content_type.lower().startswith('application/json'):
-                    
-    #                 #Aastha's function will give json
-    #                 print "hi"
-    #                 re_body_text = self.extract_dic(re_body)
-    #                 print re_body_text
-    #                 con_type=1
-
-    #             elif not (content_type.lower().startswith('application') or content_type.lower().startswith('text/xml')):
-    #                 re_body_text=re_body
-    #                 con_type=2
-
-    #             elif content_type.lower().startswith('application/x') or content_type.lower().startswith('text/xml'):
-    #                 re_body_text=re_body
-    #                 con_type=3
-
-    #             elif content_type.lower().startswith('application/x-www-form-urlencoded'):
-    #                 re_body_text=re_body
-    #                 con_type=4
-    #             elif content_type.lower().startswith('multipart/form-data'):
-    #                 re_body_text=re_body
-    #                 con_type=5
-    #             else:
-    #                 print "in Else "
-    #                 re_body_text=re_body
-    #                 con_type=0
-    #         except Exception:
-    #             print "Caught an exception"
-    #             con_type=0
-    #             return re_body,con_type        
-        # return re_body_text,con_type
 
     def encEntireBody(self,req_body,iv):
         req_body = self.encr(req_body,iv)
         return req_body
 
-    def encr_json(self,req_body, iv,para ):
-        print "ENCR_JSON"
+    def getKey(self,start,baseStr):
+        i = start
+        while i<len(baseStr):
+            if baseStr[i] == ':':
+                j = i - 2
+                b = []
+                while baseStr[j]!='\'' and baseStr[j]!= '\"':
+                    b.append(baseStr[j])
+                    j = j-1
+                b.reverse()
+                a =""
+                for j in range(len(b)):
+                    a = a +b[j]
+                return i,a
+            i =i + 1
+        return i, None
+
+    def checkKey(self,start, baseStr):
+        flag = 0
+        if baseStr[start] == '\'' or baseStr[start] == '\"':
+            flag =1
+        i =start
+        while i<len(baseStr):
+            if baseStr[i] == ':':
+                b = []
+                if flag == 1:
+                    a = self.frameStr1(start,baseStr, i)
+                else:
+                    a = self.frameStr2(start,baseStr, i)
+                return start,a
+            i = i + 1
+    def frameStr1(self,start,baseStr,i):
+        k = i - 2
+        b = []
+        while k>start:
+            b.append(baseStr[k])
+            k = k - 1
+        b.reverse()
+        a = ""
+        for j in range(len(b)):
+            a = a +b[j]
+        return a
+
+    def frameStr2(self,start,baseStr,i):
+        k = i -1
+        b = []
+        while k>=start:
+            b.append(baseStr[k])
+            k = k - 1
+        b.reverse()
+        a = ""
+        for j in range(len(b)):
+            a = a +b[j]
+        return a
+
+    def getVal(self,start,baseStr,dic):
+        val = []
+        i = start + 1
+        start = start + 1
+        while baseStr[i]==' ':
+            i = i + 1
+            start = start + 1
+        if (baseStr[i] == '\'' or baseStr[i] == '\"'):
+            flag = 1
+        while i<len(baseStr):
+            if baseStr[i] == ',':
+                k , a = self.checkKey(i+1,baseStr)
+                if str(a) in dic.keys():
+                    if flag == 1:
+                        a = self.frameStr1(start,baseStr, i)
+                    else:
+                        a = self.frameStr2(start,baseStr, i)
+                    return i,a
+
+            elif baseStr[i] == '}':
+                if i == len(baseStr)-1:
+                    k = i -1
+                    while baseStr[k] == ' ' or baseStr[k] == '\n':
+                        k = k -1
+                    if flag == 1:
+                        a = self.frameStr1(start,baseStr, k+1)
+                    else:
+                        a = self.frameStr2(start,baseStr, k+1)
+                    return i,a
+            i = i + 1
+
+    def encr_json(self,req_body, iv,para,dic ):
+        req_body_text = None
         try:
-            json_obj = json.loads(req_body)
-            for ele in json_obj.keys(): 
-                if ele in para:
-                    print ele
-                    temp = json_obj[ele]
-                    temp= self.encr(temp,iv)
-                    if ivf is None and ivs == '1':
-                        temp = iv + temp
-                    elif ivf is None and ivs == '2':
-                        temp = temp + iv
-                    temp = eval(mode_encod)(temp)
-                    json_obj[ele] = temp
-            json_str = json.dumps(json_obj, indent=2)
-            if json_str.count('\n') < 50:
-                req_body_text = json_str
-            else:
-                lines = json_str.splitlines()
-                req_body_text = "%s\n(%d lines)" % ('\n'.join(lines[:50]), len(lines))
+            baseStr = req_body
+            it = 0
+            result = baseStr
+            print result
+            while it<len(baseStr):
+                a= ""
+                it, a =self.getKey(it,baseStr)
+                b= ""
+                if a is not None:
+                    it, b = self.getVal(it+1,baseStr,dic)
+                    if a in para:
+                        temp = b
+                        temp = self.encr(temp,iv)
+                        if ivf is None and ivs == '1':
+                            temp = iv + temp
+                        elif ivf is None and ivs == '2':
+                            temp = temp + iv
+                        temp = eval(mode_encod)(temp)
+                        result = result.replace(str(b),str(temp))
+            req_body_text  = result
         except Exception:
             req_body_text = req_body
             print (traceback.format_exc())
@@ -528,13 +578,14 @@ class ProxyRequestHandler(BaseHTTPRequestHandler):
             for elt in e.iter():
                 if elt.tag in para and elt.text is not None:
                     elt.text=self.encr(elt.text,iv)
+                    if ivf is None and ivs == '1':
+                        temp1 = iv + temp1
+                    elif ivf is None and ivs == '2':
+                        temp1 = temp1 + iv
+                    temp1 = eval(mode_encod)(temp1)
             #Check what to do about XML Version and encoding
             temp = ET.tostring(e, encoding='utf8', method='xml')
-            if ivf is None and ivs == '1':
-                temp = iv + temp
-            elif ivf is None and ivs == '2':
-                temp = temp + iv
-            temp = eval(mode_encod)(temp)
+            
         except Exception:
             print (traceback.format_exc())
             temp  = re_body
@@ -546,23 +597,57 @@ class ProxyRequestHandler(BaseHTTPRequestHandler):
         for i in elem_dic:
             if elem_dic[i] in para:
                 elem_dic[i]=self.encr(elem_dic[i],iv)
+                if ivf is None and ivs == '1':
+                    elem_dic[i] = iv + elem_dic[i]
+                elif ivf is None and ivs == '2':
+                    elem_dic[i] = elem_dic[i] + iv
+                elem_dic[i] = eval(mode_encod)(elem_dic[i])
         temp = ""
         for key,value in elem_dic:
             temp = temp + key + '=' + value + '&'
         temp1 = temp [:-1]
-        if ivf is None and ivs == '1':
-            temp1 = iv + temp1
-        elif ivf is None and ivs == '2':
-            temp1 = temp1 + iv
-        temp = eval(mode_encod)(temp1)
         return temp1
+
+    def encr_multi(self,re_body,iv,para,req_body):
+        file=open("temp.txt","r")
+        try:
+            a=file.readlines()
+            boundary=re_body
+            lis=""
+            i=0
+            while i<len(a)-1:
+                if boundary in a[i]:
+                    lis=lis+a[i]
+                    while a[i] != '\n':
+                        lis=lis+a[i]
+                        i=i+1
+                    lis=lis+a[i]
+                    i=i+1
+                    temp=""
+                    while boundary not in a[i]:
+                        temp=temp+a[i]
+                        i=i+1
+                    if temp in parameters:
+                        temp=temp[:-1]
+                        temp=self.encr(temp,iv)
+                        if ivf is None and ivs == '1':
+                            temp = iv + temp
+                        elif ivf is None and ivs == '2':
+                            temp = temp + iv
+                        temp = eval(mode_encod)(temp)
+                        temp=temp+'\n'
+                    lis=lis+temp
+        except Exception:
+            return req_body
+        file.close()
+        return lis
+        
 
     def encryption(self, req, req_body):
         #Input of parameters. ivNum contains the number of IVs in the request. If different parameters
         #contain different IV, then obtained while encryption
         iv = self.extractIV()
         print ("Now inside Encryption Function")
-        print req_body
         req_body_text = None
         #Encryption of full request body:
         if (int(mxen)==1):
@@ -572,52 +657,30 @@ class ProxyRequestHandler(BaseHTTPRequestHandler):
         #Encryption of Parameters: Encrypts all values only: 
         if (int(mxen)==2 or int(mxen) == 3):
             req_body = self.getBodyEnc(req_body)
-            req_body, content_type = self.get_body_text(req,req_body)
+            req_body_text, content_type = self.get_body_text(req,req_body)
             filePara = open('reqpara.txt','r') if encrdecr == 'e' else open('respara.txt','r')
             para = filePara.readlines()
             
             for i in range(len(para)):
                 para[i]=para[i].replace("\n","")
-            print("Changed Here")
-            print para
             if content_type == 1:
-                req_body_text = self.encr_json(req_body,iv,para)
+                fileDic  = open('reqjson.txt','r') if encrdecr == 'e' else open('resjson.txt','r')
+                dic = json.loads(fileDic.read())
+                req_body_text = self.encr_json(req_body_text,iv,para,dic)
+                fileDic.close()
             elif  content_type == 2:
                 req_body_text = req_body #Insert code here
             elif content_type == 3:
-                req_body_text = self.encr_xml(req_body,iv,para)
+                req_body_text = self.encr_xml(req_body_text,iv,para)
             elif content_type == 4:
-                req_body_text = self.encr_www(req_body,iv,para)
+                req_body_text = self.encr_www(req_body_text,iv,para)
             elif content_type == 5:
-                req_body_text = req_body #Insert code here
+                req_body_text = self.encr_multi(req_body_text,iv,para,req_body) #Insert code here
             else:
                 pass
-                # #Handler if the content-type is not application/json. File 'reqHandler' is opened and request 
-                # #is written. The user is required to encrypt the plaintext required and paste back in the file.
-                # #'e': encryption. 'q': stop encryption loop
-                # reqFile = open('reqHandler.dat', 'w+')
-                # reqFile.write(str(req_body))
-                # reqFile.close()
-                # choice =raw_input("Enter e for encryption of text and q to exit")
-                # while (choice!='q'):
-                #     encText = raw_input("Enter text to encrypt")
-                #     encText = self.getBodyEnc(encText)
-                #     encText = self.encr(encText,iv)
-                #     if (ivs == '1'):
-                #         encText = iv + encText
-                #     else:
-                #         encText = encText + iv
-                #     encText = eval(mode_encod)(encText)
-                #     print encText
-                #     choice = raw_input("Do you want to continue? e(encrypt)/q (quit)")
-                # reqFile = open('reqHandler.dat', 'r')
-                # req_body_text = reqFile.read()
-                # reqFile.close()
             filePara.close()   
-            
-            print "final Return value:"+ req_body_text
             return req_body_text
-
+                
 
     def request_handler(self, req, req_body):
         global flag_side
@@ -658,15 +721,8 @@ class ProxyRequestHandler(BaseHTTPRequestHandler):
 
 
     def get_body_text(self,re,re_body):
-    # -text/plain .
-    # -text/html .
-    # --application/json .
-    # --application/xml .
-    # --text/xml .
-    # --application/x-www-form-urlencoded
-    # --multipart/form-data (Think can be split about =)
-    # -multipart/byteranges .
-    # --application/xhtml+xml
+    # Handles -text/plain,-text/html, -application/json, -application/xml -text/xml -application/x-www-form-urlencoded
+    # --multipart/form-data, -multipart/byteranges, -application/xhtml+xml
 
         con_type=0
         if re_body is not None:
@@ -689,12 +745,14 @@ class ProxyRequestHandler(BaseHTTPRequestHandler):
                 re_body_text=re_body
                 con_type=4
             elif content_type.lower().startswith('multipart/form-data'):
-                re_body_text=re_body
+                con_type_header=re.headers.get('Content-Type', '')
+                re_body_text=con_type_header.split("=")[1]
                 con_type=5
             else:
                 re_body_text=re_body
                 con_type=0
-                
+        else:
+            re_body_text = None        
         return re_body_text,con_type
 
 
@@ -710,6 +768,7 @@ class ProxyRequestHandler(BaseHTTPRequestHandler):
 
     def decrypt(self,re,re_body):
         print("Inside Decryption Function")
+        print("Response"+"\n")
         print(re_body)
         re_list=self.get_body_text(re,re_body)
         re_body_text=re_list[0]
@@ -731,6 +790,16 @@ class ProxyRequestHandler(BaseHTTPRequestHandler):
         global encrdecr
         global flag_for_mul_inp
         global flag_side
+        
+        # Done as Base Request is needed for forming proper json formation before encryption.
+        if flag_side==0:
+            file=open("reqjson.txt","w")
+            file.write(re_body_text)
+            file.close()
+        elif flag_side==1:
+            file =open("resjson.txt","w")
+            file.write(re_body_text)
+            file.close()
 
         decryption_final='enc_dec_'+cipMethod.lower()+"."+cipMethod.lower()+"_"+cmode.lower()+"_dec"
         block=16 if "aes" in decryption_final else 8
@@ -811,7 +880,31 @@ class ProxyRequestHandler(BaseHTTPRequestHandler):
                 return original
 
         def decrypt_multipart_form(parameters,re_body_text):
-            pass
+            file=open("temp.txt","r")
+            a=file.readlines()
+            boundary=re_body_text
+            lis=""
+            i=0
+            while i<len(a)-1:
+                if boundary in a[i]:
+                    lis=lis+a[i]
+                    while a[i] != '\n':
+                        lis=lis+a[i]
+                        i=i+1
+                    lis=lis+a[i]
+                    i=i+1
+                    temp=""
+                    while boundary not in a[i]:
+                        temp=temp+a[i]
+                        i=i+1
+                    if temp in parameters:
+                        temp=temp[:-1]
+                        temp=decryption(temp)
+                        temp=temp+'\n'
+                    lis=lis+temp
+                file.close()
+            return lis
+
         
         def fetch_parameters(list_parameters,flag_side):
             if flag_side==0:
@@ -876,18 +969,38 @@ class ProxyRequestHandler(BaseHTTPRequestHandler):
                     return original
 
             if con_type==5:
-                pass
-                # TODO for multipart/form-data
+                original=re_body
+                file=open("temp.txt","w")
+                file.write(original)
+                file.close()
+                file=open("temp.txt","r")
+                a=file.readlines()
+                lis=list()
+                boundary=re_body_text
+                i=0
+                while i<len(a)-1:
+                    if boundary in a[i]:
+                        while a[i] != '\n':
+                            i=i+1
+                        i=i+1
+                        temp=""
+                        while boundary not in a[i]:
+                            temp=temp+a[i]
+                            i=i+1
+                        temp=temp[:-1]
+                        lis.append(temp)
+                parameters=fetch_parameters(lis,flag_side)
+                return decrypt_multipart_form(parameters,re_body)
+
 
         if mxen =='3':
             print("It came here")
             if flag_for_mul_inp==0:
-                print colored("Please enter the keys the values of which have to decrypted. Separate by a single space\n","green")
+                print colored("If json/xml, enter keys. If others, enter values.Separate by a single space.","green")
                 lis_of_parameters=raw_input()
                 list_parameters=lis_of_parameters.split()
                 parameters=fetch_parameters(list_parameters,flag_side)
                 flag_for_mul_inp=1
-                print("This should also be printed only once otherwise go fuck yourself")
             else:
                 if flag_side==0:
                     file=open("reqpara.txt","r")
@@ -907,8 +1020,10 @@ class ProxyRequestHandler(BaseHTTPRequestHandler):
                 return decrypt_www_form_urlencoded(parameters,re_body_text)
 
             if con_type==5:
-                # TODO for urlencod
-                pass
+                file=open("temp.txt","w")
+                file.write(re_body)
+                file.close()
+                return decrypt_multipart_form(parameters,re_body_text)
         else:
             sys.exit("Please enter valid mxen")
 
@@ -922,7 +1037,7 @@ class ProxyRequestHandler(BaseHTTPRequestHandler):
 def test(HandlerClass=ProxyRequestHandler, ServerClass=ThreadingHTTPServer, protocol="HTTP/1.1"):
     port = sys.argv[1]
     port=int(port)
-    server_address = ('::1', port)
+    server_address = ('192.168.0.194', port)
     HandlerClass.protocol_version = protocol
     httpd = ServerClass(server_address, HandlerClass)
 
@@ -954,7 +1069,6 @@ if __name__ == '__main__':
     flag_for_mul_inp=0
     fname = Path("requirements.dat")
     if (fname.exists()):
-        print "Inputs"
         fileReq = open("requirements.dat",'r')
         dic = json.loads(fileReq.read())
         cipMethod = dic['cipMethod']
@@ -972,7 +1086,6 @@ if __name__ == '__main__':
             encrdecr ='d'
         else:
             encrdecr = 'e'
-        print encrdecr
         fileReq.close()
     else:
         dic = {}
@@ -1002,4 +1115,3 @@ if __name__ == '__main__':
         fileReq.write(json.dumps(dic,indent=2))
         fileReq.close()
     test()
-

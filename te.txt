@@ -1,0 +1,15 @@
+--------------------------2ad932de9073b156
+Content-Disposition: form-data; name="text"
+
+default
+--------------------------2ad932de9073b156
+Content-Disposition: form-data; name="file1"; filename="text.txt"
+Content-Type: text/plain
+
+user
+admin
+--------------------------2ad932de9073b156
+Content-Disposition: form-data; name="man"
+
+lan
+--------------------------2ad932de9073b156--
