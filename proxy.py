@@ -138,9 +138,6 @@ class ProxyRequestHandler(BaseHTTPRequestHandler):
             target=req.headers['Host']
             flag_for_url=1
 
-        global flag_for_url
-        global target
-
         if flag_for_url==0:
             target=req.headers['Host']
             flag_for_url=1
@@ -560,6 +557,7 @@ class ProxyRequestHandler(BaseHTTPRequestHandler):
         val = []
         i = start + 1
         start = start + 1
+        flag = 0
         while baseStr[i]==' ':
             i = i + 1
             start = start + 1
@@ -836,16 +834,18 @@ class ProxyRequestHandler(BaseHTTPRequestHandler):
         global encrdecr
         global flag_for_mul_inp
         global flag_side
-        
+        global flag_json_dont_overwrite
         # Done as Base Request is needed for forming proper json formation before encryption.
-        if flag_side==0:
+        if flag_side==0 and flag_json_dont_overwrite==0 :
             file=open("reqjson.txt","w")
             file.write(re_body_text)
             file.close()
-        elif flag_side==1:
+            flag_json_dont_overwrite=1
+        elif flag_side==1 and flag_json_dont_overwrite==0:
             file =open("resjson.txt","w")
             file.write(re_body_text)
             file.close()
+            flag_json_dont_overwrite=1
 
         decryption_final='enc_dec_'+cipMethod.lower()+"."+cipMethod.lower()+"_"+cmode.lower()+"_dec"
         block=16 if "aes" in decryption_final else 8
@@ -1082,7 +1082,7 @@ class ProxyRequestHandler(BaseHTTPRequestHandler):
 def test(HandlerClass=ProxyRequestHandler, ServerClass=ThreadingHTTPServer, protocol="HTTP/1.1"):
     port = sys.argv[1]
     port=int(port)
-    server_address = ('192.168.0.177', port)
+    server_address = ('192.168.0.194', port)
     HandlerClass.protocol_version = protocol
     httpd = ServerClass(server_address, HandlerClass)
 
@@ -1109,6 +1109,8 @@ if __name__ == '__main__':
     global flag_for_url
     global target
     global flag_side
+    global flag_json_dont_overwrite
+    flag_json_dont_overwrite=0
     flag_side=0
     flag_for_url=0
     flag_for_mul_inp=0

@@ -1,6 +1,6 @@
 {
   "cipMethod": "AES", 
-  "mxen": "3", 
+  "mxen": "2", 
   "cmode": "CBC", 
   "logslevel": 2, 
   "mode_enco": "Base64", 
