@@ -1247,4 +1247,3 @@ if __name__ == '__main__':
         fileReq.write(json.dumps(dic))
         fileReq.close()
     test()
-
