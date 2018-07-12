@@ -4,12 +4,12 @@ import os
 import socket
 import ssl
 import select
-import httplib
 import urlparse
 import threading
 import gzip
 import zlib
 import time
+import httplib
 import json
 import re
 from BaseHTTPServer import HTTPServer, BaseHTTPRequestHandler
@@ -26,6 +26,7 @@ import enc_dec_aes
 import enc_dec_des
 import enc_dec_des3
 import EncDec
+
 
 def with_color(c, s):
     return "\x1b[%dm%s\x1b[0m" % (c, s)
@@ -74,6 +75,7 @@ class ProxyRequestHandler(BaseHTTPRequestHandler):
         else:
             self.connect_relay()
 
+    #Function to establish the connection, send certificates:
     def connect_intercept(self):
         hostname = self.path.split(':')[0]
         certpath = "%s/%s.crt" % (self.certdir.rstrip('/'), hostname)
@@ -98,6 +100,7 @@ class ProxyRequestHandler(BaseHTTPRequestHandler):
         else:
             self.close_connection = 1
 
+    #Function to send data if certificates are not found. Interception does not take place.
     def connect_relay(self):
         address = self.path.split(':', 1)
         address[1] = int(address[1]) or 443
@@ -123,6 +126,7 @@ class ProxyRequestHandler(BaseHTTPRequestHandler):
                     break
                 other.sendall(data)
 
+    #Function interceptor
     def do_GET(self):
         if self.path == 'http://proxy2.test/':
             self.send_cacert()
@@ -134,23 +138,21 @@ class ProxyRequestHandler(BaseHTTPRequestHandler):
         global flag_for_url
         global target
 
+        #set target for all requests from the first request-
         if flag_for_url==0:
             target=req.headers['Host']
             flag_for_url=1
 
-        global flag_for_url
-        global target
+        #If Proxy mode 'encrdecr' is 'e'(P2), Req.path contains hostname and scheme. Regex for removing it-
+        req.path=re.sub("^.*//.*?/","/",req.path) if encrdecr == "e" else req.path
+        
+        #temp_url contains absolute URL
+        if isinstance(self.connection, ssl.SSLSocket):
+            temp_url = "https://%s%s" % (target, req.path)
+        else:
+            temp_url = "http://%s%s" % (target, req.path)
 
-        if flag_for_url==0:
-            target=req.headers['Host']
-            flag_for_url=1
-
-        if req.path[0] == '/':
-            if isinstance(self.connection, ssl.SSLSocket):
-                req.path = "https://%s%s" % (target, req.path)
-            else:
-                req.path = "http://%s%s" % (target, req.path)
-
+        #Response body handler
         req_body_modified,req_body_original = self.request_handler(req, req_body)
         if req_body_modified is False:
             self.send_error(403)
@@ -159,41 +161,31 @@ class ProxyRequestHandler(BaseHTTPRequestHandler):
             req_body = req_body_modified
             req.headers['Content-length'] = str(len(req_body))
 
-        u = urlparse.urlsplit(req.path)
+        u = urlparse.urlsplit(temp_url)
         scheme, netloc, path = u.scheme, u.netloc, (u.path + '?' + u.query if u.query else u.path)
         assert scheme in ('http', 'https')
         if netloc:
             req.headers['Host'] = netloc
         setattr(req, 'headers', self.filter_headers(req.headers))
+        #Send request and Receive Response:
         try:
             origin = (scheme, netloc)
-            if not origin in self.tls.conns:
-                if encrdecr=='d':
-                    self.tls.conns[origin] = httplib.HTTPConnection("localhost", 3333)
-                    conn = self.tls.conns[origin]
-                    conn.set_tunnel(netloc)
-                else:
-                    self.tls.conns[origin] = httplib.HTTPConnection(netloc, timeout=self.timeout)
-                    conn = self.tls.conns[origin]
-
-            conn.set_debuglevel(2)
-            print("Finally here")
-            conn.request(self.command,path, req_body, dict(req.headers))
-            # conn.putrequest(self.command,path)
-            # header_dic=dict(req.headers)
-            # for i in header_dic:
-            #     conn.putheader(i, header_dic[i])
-            # conn.endheaders()
-            # conn.sendata(req_body)
-
+            if encrdecr=='d':
+                #P1 has proxy mode 'encrdecr' as 'd'. It forms HTTPConnection with BURP at localhost and port 3333.
+                #set_tunnel function sets the target to server.
+                self.tls.conns[origin] = httplib.HTTPConnection("localhost",3333)
+                self.tls.conns[origin].set_tunnel(netloc)
+                conn = self.tls.conns[origin]
+            else:
+                self.tls.conns[origin] = httplib.HTTPConnection(netloc, timeout=self.timeout)
+                conn = self.tls.conns[origin]
+            conn.request(self.command,path,req_body, dict(req.headers))
+            
             res = conn.getresponse()
-            print("Response too")
-
             version_table = {10: 'HTTP/1.0', 11: 'HTTP/1.1'}
             setattr(res, 'headers', res.msg)
             setattr(res, 'response_version', version_table[res.version])
-
-            # support streaming
+            # support streaming 
             if not 'Content-Length' in res.headers and 'no-store' in res.headers.get('Cache-Control', ''):
                 self.response_handler(res,res_body)
                 setattr(res, 'headers', self.filter_headers(res.headers))
@@ -201,7 +193,6 @@ class ProxyRequestHandler(BaseHTTPRequestHandler):
                 with self.lock:
                     self.save_handler(req, req_body, res, '')
                 return
-
             res_body = res.read()
         except Exception as e:
             if origin in self.tls.conns:
@@ -212,7 +203,9 @@ class ProxyRequestHandler(BaseHTTPRequestHandler):
         content_encoding = res.headers.get('Content-Encoding', 'identity')
         res_body_plain = self.decode_content_body(res_body, content_encoding)
 
+        #Response body Handler.
         res_body_modified,res_body_original = self.response_handler(res, res_body_plain)
+        
         if res_body_modified is False:
             self.send_error(403)
             return
@@ -220,16 +213,14 @@ class ProxyRequestHandler(BaseHTTPRequestHandler):
         elif res_body_modified is not None:
             res_body_plain = res_body_modified
             res_body = self.encode_content_body(res_body_plain, content_encoding)
-            #res.headers['Content-Length'] = str(len(res_body))
 
         setattr(res, 'headers', self.filter_headers(res.headers))
 
         self.wfile.write("%s %d %s\r\n" % (self.protocol_version, res.status, res.reason))
-        for line in res.headers.headers:
+        for line in res.headers.headers:            #writes content-length header manually.
             if "Content-Length" not in line:
                 self.wfile.write(line)
-        #if res_body_modified is not None:
-        self.wfile.write("Content-Length: "+str(len(res_body))+"\r\n")
+        self.wfile.write("Content-Length: "+str(len(res_body))+"\r\n") 
         self.end_headers()
         self.wfile.write(res_body)
         self.wfile.flush()
@@ -259,12 +250,13 @@ class ProxyRequestHandler(BaseHTTPRequestHandler):
     do_DELETE = do_GET
     do_OPTIONS = do_GET
 
+    #Function to filter headers. removes 'connection', 'keep-alive', 'proxy-authenticate', 'proxy-authorization', 
+    #'te', 'trailers', 'transfer-encoding', 'upgrade'
     def filter_headers(self, headers):
         # http://tools.ietf.org/html/rfc2616#section-13.5.1
-        # hop_by_hop = ('connection', 'keep-alive', 'proxy-authenticate', 'proxy-authorization', 'te', 'trailers', 'transfer-encoding', 'upgrade')
-        # for k in hop_by_hop:
-        #     del headers[k]
-        pass
+        hop_by_hop = ('connection', 'keep-alive', 'proxy-authenticate', 'proxy-authorization', 'te', 'trailers', 'transfer-encoding', 'upgrade')
+        for k in hop_by_hop:
+            del headers[k]
 
         # accept only supported encodings
         if 'Accept-Encoding' in headers:
@@ -274,6 +266,8 @@ class ProxyRequestHandler(BaseHTTPRequestHandler):
 
         return headers
 
+    #ENCODING DECODING BLOCKS-
+    #Function to encode message contents(gzip,x-gzip,deflate)
     def encode_content_body(self, text, encoding):
         if encoding == 'identity':
             data = text
@@ -288,6 +282,7 @@ class ProxyRequestHandler(BaseHTTPRequestHandler):
             raise Exception("Unknown Content-Encoding: %s" % encoding)
         return data
 
+    #Function to decode message contents(gzip,x-gzip,deflate)
     def decode_content_body(self, data, encoding):
         if encoding == 'identity':
             text = data
@@ -315,16 +310,19 @@ class ProxyRequestHandler(BaseHTTPRequestHandler):
         self.end_headers()
         self.wfile.write(data)
 
+    #Function to print on both console and log file
     def print_info(self, req, req_body, res, res_body,req_body_original,res_body_original):
         def parse_qsl(s):
             return '\n'.join("%-20s %s" % (k, v) for k, v in urlparse.parse_qsl(s, keep_blank_values=True))
         
+        #Request and Response header texts are combined
         req_header_text = "%s %s %s\n%s" % (req.command, req.path, req.request_version, req.headers)
         res_header_text = "%s %d %s\n%s" % (res.response_version, res.status, res.reason, res.headers)
 
+        #Request --
         print with_color(33, req_header_text)
-
         u = urlparse.urlsplit(req.path)
+        #If Query parameters are present in the path-
         if u.query:
             query_text = parse_qsl(u.query)
             print with_color(32, "==== QUERY PARAMETERS ====\n%s\n" % query_text)
@@ -348,7 +346,7 @@ class ProxyRequestHandler(BaseHTTPRequestHandler):
             elif content_type.startswith('application/json'):
                 try:
                     json_obj = json.loads(req_body)
-                    json_str = json.dumps(json_obj, indent=2)
+                    json_str = json.dumps(json_obj)
                     if json_str.count('\n') < 50:
                         req_body_text = json_str
                     else:
@@ -362,8 +360,8 @@ class ProxyRequestHandler(BaseHTTPRequestHandler):
             if req_body_text:
                 print with_color(32, "==== REQUEST BODY ====\n%s\n" % req_body_text)
 
+        #Response - 
         print with_color(36, res_header_text)
-
         cookies = res.headers.getheaders('Set-Cookie')
         if cookies:
             cookies = '\n'.join(cookies)
@@ -377,7 +375,7 @@ class ProxyRequestHandler(BaseHTTPRequestHandler):
             if content_type.startswith('application/json'):
                 try:
                     json_obj = json.loads(res_body)
-                    json_str = json.dumps(json_obj, indent=2)
+                    json_str = json.dumps(json_obj)
                     if json_str.count('\n') < 50:
                         res_body_text = json_str
                     else:
@@ -395,12 +393,15 @@ class ProxyRequestHandler(BaseHTTPRequestHandler):
 
             if res_body_text:
                 print with_color(32, "==== RESPONSE BODY ====\n%s\n" % res_body_text)
-                
+            
+            #LOG LEVELS available - 0,1,2. Proxy 1 writes to p1.txt and Proxy 2 writes to p2.txt
+            #1: only prints what is modified in the script.
+            #2: prints everything 
             if logslevel:
                 filePrint = open('p1.txt','a+') if encrdecr == 'd' else open('p2.txt','a+')
                 filePrint.write("-------------------------------------------------------------------------------------------\r")
                 filePrint.write("-------------------------------------------------------------------------------------------\r")
-                filePrint.write("\rREQUEST:\r")
+                filePrint.write("\rREQUEST:\r\n")
                 filePrint.write(req_header_text+"\r\n")
                 if u.query:
                     filePrint.write("==== QUERY PARAMETERS ====\n%s\r\n" % query_text)
@@ -432,27 +433,10 @@ class ProxyRequestHandler(BaseHTTPRequestHandler):
                 filePrint.write("-------------------------------------------------------------------------------------------\r")
                 filePrint.write("\r")
                 filePrint.close()
-            
-    #Function to extract IV
-    def extractIV(self):
-        iv = ""
-        if ivf is None:
-            ivobj = open('iv.txt', 'r')
-            lines = ivobj.readlines()
-            iv = lines[0] if encrdecr == 'e' else lines[1]
-            ivobj.close()
-        else:
-            iv =ivf
-        dec = "EncDec." + mode_enco + "Dec"
-        iv = eval(dec)(iv)
-        # print iv
-        # print type(iv)
-        return iv
 
-    #Function to extract text to encrypt
-    def getBodyEnc(self, requestString):
-        return requestString
 
+
+#Encryption Block
     #Function to optimise json dictionary strings 
     def extract_dic(self,a):
         global b 
@@ -497,10 +481,45 @@ class ProxyRequestHandler(BaseHTTPRequestHandler):
             return a
         return b
 
+    #Function to extract IV
+    def extractIV(self):
+        iv = ""
+        if ivf is None:
+            ivobj = open('iv.txt', 'r')
+            lines = ivobj.readlines()
+            iv = lines[0] if encrdecr == 'e' else lines[1]
+            ivobj.close()
+        else:
+            iv =ivf
+        dec = "EncDec." + mode_enco + "Dec"
+        iv = eval(dec)(iv)
+        # print iv
+        # print type(iv)
+        return iv
+
+    #Function to append IV and encode the message.
+    def appendIVEncode(self,temp,iv):
+        if ivf is None and ivs == '1':
+            temp = iv + temp
+        elif ivf is None and ivs == '2':
+            temp = temp + iv
+        temp = eval(mode_encod)(temp)
+        return temp
+
+    #Function to extract text to encrypt
+    def getBodyEnc(self, requestString):
+        return requestString
+
+    #Function to encrypt entire body
     def encEntireBody(self,req_body,iv):
         req_body = self.encr(req_body,iv)
+        req_body = self.appendIVEncode(req_body,iv)
         return req_body
 
+    #JSON ENCRYPTION ----------------------------------
+
+    #Function to get next key in the message body
+    #Function searches for ':' and takes the expression till '\'' or '\"' and returns the key
     def getKey(self,start,baseStr):
         i = start
         while i<len(baseStr):
@@ -518,6 +537,9 @@ class ProxyRequestHandler(BaseHTTPRequestHandler):
             i =i + 1
         return i, None
 
+    #Function to check if the expression contains a key present in the message.
+    #Function checks if the key starts with '\'' or '\"'. Extracts the next key till ':'. Sends positions to FrameStr* 
+    #function which returns a string starting between the indexes sent. Function returns the key formed.
     def checkKey(self,start, baseStr):
         flag = 0
         if baseStr[start] == '\'' or baseStr[start] == '\"':
@@ -532,6 +554,7 @@ class ProxyRequestHandler(BaseHTTPRequestHandler):
                     a = self.frameStr2(start,baseStr, i)
                 return start,a
             i = i + 1
+    #Functions frameStr1/2 return the string between 2 indexes.
     def frameStr1(self,start,baseStr,i):
         k = i - 2
         b = []
@@ -556,15 +579,20 @@ class ProxyRequestHandler(BaseHTTPRequestHandler):
             a = a +b[j]
         return a
 
+    #Function to obtain next value of the corresponding key found.
+    #self.checkKey() returns the next key it finds. The key is checked in the dictionary 'dic'. If not present, ','
+    #found is a part of the payload else, value ends. And frameStr() is called for forming the value.
     def getVal(self,start,baseStr,dic):
         val = []
         i = start + 1
         start = start + 1
-        while baseStr[i]==' ':
-            i = i + 1
+        flag = 0
+        while baseStr[i]==' ':   #Checks if there is space just after ':' in the value. Space is ignored for 
+            i = i + 1            #processing
             start = start + 1
-        if (baseStr[i] == '\'' or baseStr[i] == '\"'):
-            flag = 1
+        if (baseStr[i] == '\'' or baseStr[i] == '\"'): #if value is a string, it starts with '\'' or '\"'
+            flag = 1                                   #flag = 1. String and non string values call frameStr1 and
+                                                       #frameStr2() respectively
         while i<len(baseStr):
             if baseStr[i] == ',':
                 k , a = self.checkKey(i+1,baseStr)
@@ -587,8 +615,10 @@ class ProxyRequestHandler(BaseHTTPRequestHandler):
                     return i,a
             i = i + 1
 
+    #Function for processing json strings and encryption.
+    #para: list of parameters whose value is to be encrypted.
+    #dic: contains the base request keys and values for reference.
     def encr_json(self,req_body, iv,para,dic ):
-
         req_body_text = None
         try:
             baseStr = req_body
@@ -604,11 +634,7 @@ class ProxyRequestHandler(BaseHTTPRequestHandler):
                     if a in para:
                         temp = b
                         temp = self.encr(temp,iv)
-                        if ivf is None and ivs == '1':
-                            temp = iv + temp
-                        elif ivf is None and ivs == '2':
-                            temp = temp + iv
-                        temp = eval(mode_encod)(temp)
+                        temp = self.appendIVEncode(temp,iv)
                         result = result.replace(str(b),str(temp))
             req_body_text  = result
         except Exception:
@@ -616,6 +642,7 @@ class ProxyRequestHandler(BaseHTTPRequestHandler):
             print (traceback.format_exc())
         return req_body_text
 
+    #Function to encrypt XML message
     def encr_xml(self,re_body,iv,para):
         temp =""
         try:
@@ -625,11 +652,7 @@ class ProxyRequestHandler(BaseHTTPRequestHandler):
             for elt in e.iter():
                 if elt.tag in para and elt.text is not None:
                     elt.text=self.encr(elt.text,iv)
-                    if ivf is None and ivs == '1':
-                        temp1 = iv + temp1
-                    elif ivf is None and ivs == '2':
-                        temp1 = temp1 + iv
-                    temp1 = eval(mode_encod)(temp1)
+                    elt.text = self.appendIVEncode(elt.text,iv)
             #Check what to do about XML Version and encoding
             temp = ET.tostring(e, encoding='utf8', method='xml')
             
@@ -638,23 +661,23 @@ class ProxyRequestHandler(BaseHTTPRequestHandler):
             temp  = re_body
         return temp
 
+    #Function to encrypt www-formdata
     def encr_www(self,re_body,iv,para):
 
         elem_dic=dict(x.split('=') for x in re_body.split("&"))
         for i in elem_dic:
             if elem_dic[i] in para:
                 elem_dic[i]=self.encr(elem_dic[i],iv)
-                if ivf is None and ivs == '1':
-                    elem_dic[i] = iv + elem_dic[i]
-                elif ivf is None and ivs == '2':
-                    elem_dic[i] = elem_dic[i] + iv
-                elem_dic[i] = eval(mode_encod)(elem_dic[i])
+                elem_dic[i] = self.appendIVEncode(elem_dic[i],iv)
         temp = ""
         for key,value in elem_dic:
             temp = temp + key + '=' + value + '&'
         temp1 = temp [:-1]
         return temp1
 
+    #Function to encrypt multipart form data
+    #Reads lines from temp.txt and stores as a list in 'a'
+    #Searches for boundary data. Then encrypts the data. 'lis' contains the final string.
     def encr_multi(self,re_body,iv,para,req_body):
         file=open("temp.txt","r")
         try:
@@ -677,11 +700,7 @@ class ProxyRequestHandler(BaseHTTPRequestHandler):
                     if temp in parameters:
                         temp=temp[:-1]
                         temp=self.encr(temp,iv)
-                        if ivf is None and ivs == '1':
-                            temp = iv + temp
-                        elif ivf is None and ivs == '2':
-                            temp = temp + iv
-                        temp = eval(mode_encod)(temp)
+                        temp = self.appendIVEncode(temp,iv)
                         temp=temp+'\n'
                     lis=lis+temp
         except Exception:
@@ -689,57 +708,48 @@ class ProxyRequestHandler(BaseHTTPRequestHandler):
         file.close()
         return lis
         
-
+    #Encryption function. iv contains the extracted IV. 
     def encryption(self, req, req_body):
-        #Input of parameters. ivNum contains the number of IVs in the request. If different parameters
-        #contain different IV, then obtained while encryption
-        iv = self.extractIV()
-        req_body_text = None
-        #Encryption of full request body:
-        if (int(mxen)==1):
-            req_body = getBodyEnc(req_body)
-            req_body_text = encEntireBody(req_body,iv)
+        try:
+            iv = self.extractIV()
+            req_body_text = None
+            #Encryption of full request body:
+            if (int(mxen)==1):
+                req_body = getBodyEnc(req_body)
+                req_body_text = encEntireBody(req_body,iv)
 
-        #Encryption of Parameters: Encrypts all values only: 
-        if (int(mxen)==2 or int(mxen) == 3):
-            req_body = self.getBodyEnc(req_body)
-            req_body_text, content_type = self.get_body_text(req,req_body)
-            filePara = open('reqpara.txt','r') if encrdecr == 'e' else open('respara.txt','r')
-            para = filePara.readlines()
-            
-            for i in range(len(para)):
-                para[i]=para[i].replace("\n","")
-            if content_type == 1:
-                fileDic  = open('reqjson.txt','r') if encrdecr == 'e' else open('resjson.txt','r')
-                dic = json.loads(fileDic.read())
-                req_body_text = self.encr_json(req_body_text,iv,para,dic)
-                fileDic.close()
-            elif  content_type == 2:
-                req_body_text = req_body #Insert code here
-            elif content_type == 3:
-                req_body_text = self.encr_xml(req_body_text,iv,para)
-            elif content_type == 4:
-                req_body_text = self.encr_www(req_body_text,iv,para)
-            elif content_type == 5:
-                req_body_text = self.encr_multi(req_body_text,iv,para,req_body) #Insert code here
-            else:
-                pass
-            filePara.close()   
+            #Encryption of Parameters: Encrypts all values only: 
+            #filePara contains list of parameters whose values are to be encrypted.
+            #fileDic contains the base JSON request. dic will read the key value pairs of the dictionary
+            if (int(mxen)==2 or int(mxen) == 3):
+                req_body = self.getBodyEnc(req_body)    #getBodyEnc returns the editted body if required.
+                #returns content type of the request and boundary in case of multipart content type.
+                req_body_text, content_type = self.get_body_text(req,req_body) 
+                filePara = open('reqpara.txt','r') if encrdecr == 'e' else open('respara.txt','r')
+                para = filePara.readlines()
+                
+                for i in range(len(para)):
+                    para[i]=para[i].replace("\n","")
+                if content_type == 1:
+                    fileDic  = open('reqjson.txt','r') if encrdecr == 'e' else open('resjson.txt','r')
+                    dic = json.loads(fileDic.read())
+                    req_body_text = self.encr_json(req_body_text,iv,para,dic)
+                    print self.encr_json(req_body_text,iv,para,dic)
+                    fileDic.close()
+                elif  content_type == 2:
+                    req_body_text = req_body #Insert code here
+                elif content_type == 3:
+                    req_body_text = self.encr_xml(req_body_text,iv,para)
+                elif content_type == 4:
+                    req_body_text = self.encr_www(req_body_text,iv,para)
+                elif content_type == 5:
+                    req_body_text = self.encr_multi(req_body_text,iv,para,req_body) 
+                filePara.close()
+        except Exception:
+            return req_body
+        return req_body_text
 
-            print "final Return value:"+ req_body_text
-            return req_body_text
-
-    def request_handler(self, req, req_body):
-        global flag_side
-        if encrdecr == 'e':
-            flag_side=1
-            return self.encryption(req,req_body),req_body
-        else:
-            flag_side=0
-            return self.decrypt(req,req_body),req_body
-
-        
-    #Encryption Functions. User has to pass the required parameteres only.
+    #Encryption Functions. 
     def encr(self, msg,iv):
         if (cipMethod=='AES'):
             if (cmode == 'ECB'):
@@ -763,9 +773,23 @@ class ProxyRequestHandler(BaseHTTPRequestHandler):
             elif (cmode == 'CBC'):
                 return enc_dec_des3.des3_cbc_enc(keyf, msg, iv, padding)
             elif (cmode == 'CFB'):
-               return enc_dec_des3.des3_cfb_enc(keyf, msg, iv, padding, int(segment_size))      
+               return enc_dec_des3.des3_cfb_enc(keyf, msg, iv, padding, int(segment_size)) 
 
+    #Request Handler--
+    #If the proxy mode 'encrdecr' is 'd', decryption takes place(P1). Else, encryption takes place(P2).
+    def request_handler(self, req, req_body):
+        global flag_side
+        if encrdecr == 'e':
+            flag_side=1
+            return self.encryption(req,req_body),req_body
+        else:
+            flag_side=0
+            return self.decrypt(req,req_body),req_body
+        
+    
+         
 
+#Decryption Block Starts here
 
     def get_body_text(self,re,re_body):
     # Handles -text/plain,-text/html, -application/json, -application/xml -text/xml -application/x-www-form-urlencoded
@@ -777,7 +801,8 @@ class ProxyRequestHandler(BaseHTTPRequestHandler):
             content_type=re.headers.get('Content-Type','')
 
             if content_type.lower().startswith('application/json'):
-                re_body_text=self.extract_dic(re_body)
+                #re_body_text=self.extract_dic(re_body)
+                re_body_text = re_body
                 con_type=1
 
             elif not (content_type.lower().startswith('application') or content_type.lower().startswith('text/xml')):
@@ -804,7 +829,7 @@ class ProxyRequestHandler(BaseHTTPRequestHandler):
 
 
     def response_handler(self, res ,res_body):
-        #key="441538f57b510c0512f594c213cc523c"
+        # #key="441538f57b510c0512f594c213cc523c"
         global encrdecr
         if encrdecr=='e':
              res_body_text=self.decrypt(res,res_body)
@@ -814,7 +839,6 @@ class ProxyRequestHandler(BaseHTTPRequestHandler):
 
     def decrypt(self,re,re_body):
         print("Inside Decryption Function")
-        print("Response"+"\n")
         print(re_body)
         re_list=self.get_body_text(re,re_body)
         re_body_text=re_list[0]
@@ -836,16 +860,18 @@ class ProxyRequestHandler(BaseHTTPRequestHandler):
         global encrdecr
         global flag_for_mul_inp
         global flag_side
-        
+        global flag_json_dont_overwrite
         # Done as Base Request is needed for forming proper json formation before encryption.
-        if flag_side==0:
+        if flag_side==0 and flag_json_dont_overwrite==0 :
             file=open("reqjson.txt","w")
             file.write(re_body_text)
             file.close()
-        elif flag_side==1:
+            flag_json_dont_overwrite=1
+        elif flag_side==1 and flag_json_dont_overwrite==0:
             file =open("resjson.txt","w")
             file.write(re_body_text)
             file.close()
+            flag_json_dont_overwrite=1
 
         decryption_final='enc_dec_'+cipMethod.lower()+"."+cipMethod.lower()+"_"+cmode.lower()+"_dec"
         block=16 if "aes" in decryption_final else 8
@@ -863,7 +889,6 @@ class ProxyRequestHandler(BaseHTTPRequestHandler):
             orignal=todecrypt
             try:
                 decoded_value=eval(dencod)(todecrypt)
-                print(len(decoded_value))
                 if iv_info is not None:
                     if iv_info=='beg' or iv_info=='end':
                         #Extracting IV from Cipher Text
@@ -893,7 +918,7 @@ class ProxyRequestHandler(BaseHTTPRequestHandler):
             try:
                 for i in parameters:
                     body[i]=decryption(body[i])
-                return json.dumps(body,indent=2).replace("\\","")
+                return json.dumps(body).replace("\\","")
             except Exception:
                 return original
 
@@ -1072,8 +1097,7 @@ class ProxyRequestHandler(BaseHTTPRequestHandler):
         else:
             sys.exit("Please enter valid mxen")
 
-
-
+    #Function to print handled request/response and logs.
     def save_handler(self, req, req_body, res, res_body,req_body_original,res_body_original):
         self.print_info(req, req_body, res, res_body,req_body_original,res_body_original)
 
@@ -1082,6 +1106,7 @@ class ProxyRequestHandler(BaseHTTPRequestHandler):
 def test(HandlerClass=ProxyRequestHandler, ServerClass=ThreadingHTTPServer, protocol="HTTP/1.1"):
     port = sys.argv[1]
     port=int(port)
+    #Set IP Address Here
     server_address = ('192.168.0.177', port)
     HandlerClass.protocol_version = protocol
     httpd = ServerClass(server_address, HandlerClass)
@@ -1092,7 +1117,24 @@ def test(HandlerClass=ProxyRequestHandler, ServerClass=ThreadingHTTPServer, prot
 
 
 if __name__ == '__main__':
-    #--port --cipMethod --key --cmode --mode_enco --mxen --encrdecr --padding --ivs --logslevel --segment_size
+
+    """
+    Command Line Arguments-
+    1) Port
+    2) Cipher Method - AES/DES/DES3 etc.
+    3) Key
+    4) Cipher Mode - CBC/ECB/CFB etc
+    5) Encoding Mode - Base64/Hex/Oct etc
+    6) Choice:
+            1)Encrypt/Decrypt Enitre body
+            2)Encrypt/Decrypt all values in json/xml
+            3)Encrypt/Decrypt multiple parameters\n")
+    7) 'e' if this script is P2, 'd' is this is P1
+    8) Padding Mode - CMS/Bit/ISO etc
+    9) Position of IV : 1 for Starting, 2 for Ending
+    10) Log Level - 0/1/2: 0 for No logs, 1 for Printing headers and modified request/response, 2 for detailed logs
+    11) Segment Size= Only in CFB mode, must be multiple of 8. If left blank, 8 will be taken by default
+    """
     global cipMethod
     global keyf
     global cmode
@@ -1109,6 +1151,8 @@ if __name__ == '__main__':
     global flag_for_url
     global target
     global flag_side
+    global flag_json_dont_overwrite
+    flag_json_dont_overwrite=0
     flag_side=0
     flag_for_url=0
     flag_for_mul_inp=0
@@ -1160,7 +1204,7 @@ if __name__ == '__main__':
         logslevel = int (sys.argv[10])
         dic['logslevel'] = logslevel
         fileReq = open("requirements.dat",'w+')
-        fileReq.write(json.dumps(dic,indent=2))
+        fileReq.write(json.dumps(dic))
         fileReq.close()
     test()
 
