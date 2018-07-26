@@ -188,10 +188,10 @@ Example of a function is given below:
 Arguments are the text to be modified and blocksize.
 
 
-##**VI) Extra**
+##**VII) Extra**
 
 flush.sh file can be used to delete temporary files which will be created while running the scripts. 
-
+These files should be ideally flushed every time a new request is sent.
 
 
 
