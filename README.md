@@ -43,6 +43,8 @@ Note- Python 2.7 required.
 Proxy Instance 1- P1  
 Proxy Instance 2- P2  
 
+**Open proxy.py and change the ip address with your machine's ip. (server_address in test(),Line no-1150)**  
+  
 **_Start P1_**  
   
 `python proxy.py [Port] [Cipher Method] [Key] [Cipher Mode] [Encoding Mode] [Choice] [e/d] [Padding Mode] [Position of IV] [Log Level] [Segment Size]`  
