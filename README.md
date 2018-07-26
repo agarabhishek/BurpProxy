@@ -34,7 +34,7 @@ Run the following commands
   
 `./setup.sh`   
 `pip install ./Padding.tar.gz`  
-`pip requirements.txt`  
+`pip -r requirements.txt`  
 
 Note- Python 2.7 required.
 
@@ -80,13 +80,32 @@ Position of IV : 1 for Starting, 2 for Ending
 Log Level- 0/1/2. Proxy 1 writes to p1.txt and Proxy 2 writes to p2.txt  
 
        	0- No Logs 
-	1- Only prints what is modified in the script.     
-	2- Prints everything.  
+		1- Only prints what is modified in the script.     
+		2- Prints everything.  
 
 Segment Size= Only in CFB mode, must be multiple of 8. If left blank, 8 will be taken by default.
 
 ##**V) Current Support**
 
 Currently Supported Encryption Methods:
+
+	1)AES
+	2)DES  
+	3)DES3
+
+Currently Supported Padding Schemes:
+
+	1)BitPadding: Pad with 0x80 (10000000) followed by zero (null) bytes.
+	2)CMS: Also called PKCS#5/PKCS#7. Pad with bytes all of the same value as the number of padding
+	3)ZeroLen: Also called ANSI X.923. Pad with zeroes except make the last byte equal to the number (length) of padding bytes
+	4)Null: Also called Zero Padding.Pad with null bytes. Only for encrypting of text data
+	5)ISO: Known as ISO/IEC 7816-4. Pad with 80 (Hexadecimal) followed by 00.Identical to the bit padding scheme
+	6)Random: Also called -ISO 10126. Pad with random bytes + last byte equal to the number of padding bytes 
+	
+*See README in Padding.tar.gz for more details*
+
+
+
+
 
 
