@@ -85,7 +85,20 @@ Log Level- 0/1/2. Proxy 1 writes to p1.txt and Proxy 2 writes to p2.txt
 
 Segment Size= Only in CFB mode, must be multiple of 8. If left blank, 8 will be taken by default.
 
-##**V) Current Support**
+##**V) Current Support**  
+
+Currently Supported Content Types:
+
+*In content types which have key-value pairs, we can encrypt-decrypt all values or multiple values.*
+
+        1) text/plain: Encrypt/Decrypt Entire Body
+        2) text/html:  Encrypt/Decrypt Entire Body
+        3) text/xml: Encrypt/Decrypt Entire Body
+        4) application/json : Has Key-Value pairs. 
+        5) application/xml: Has Key-Value pairs. 
+        6) application/x-www-form-urlencoded: Has Key-Value pairs. 
+        7) multipart/form-data: Has Key-Value pairs.
+        8) application/xhtml+xmls: Has Key-Value pairs.
 
 Currently Supported Encryption Methods:
 
@@ -174,24 +187,41 @@ We have tried to cover all possible paddings. To add a new padding scheme, you n
 These functions return the modified text.  
 Example of a function is given below:  
 
-	def removeISOPadding(str, blocksize=AES_blocksize):   
-	    pad_len = 0        
-	    for char in str[::-1]: # str[::-1] reverses string  
-	        if char == '\0':  
-	            pad_len += 1  
-	        else:  
-	            break  
-	    pad_len += 1  
-	    str = str[:-pad_len]  
-	   	return str      
+`def removeISOPadding(str, blocksize=AES_blocksize):`     
+`    pad_len = 0`          
+`    for char in str[::-1]: # str[::-1] reverses string`  
+`        if char == '\0':`    
+`            pad_len += 1`    
+`        else:`    
+`            break`    
+`    pad_len += 1`    
+`    str = str[:-pad_len]`    
+`   	return str`        
 
 Arguments are the text to be modified and blocksize.
 
 
 ##**VII) Extra**
 
-flush.sh file can be used to delete temporary files which will be created while running the scripts. 
+* flush.py file can be used to delete temporary files which will be created while running the scripts. 
 These files should be ideally flushed every time a new request is sent.
 
+*  *Note: In multipart/form-data, suppose we have the following body-*  
 
-
+	--------------------------d74496d66958873e
+	Content-Disposition: form-data; name="person"  
+	 
+	akdbsakdbsj=sadaln
+	--------------------------d74496d66958873e
+	Content-Disposition: form-data; name="secret"; filename="file.txt"
+	Content-Type: text/plain
+	 
+	sdakjldnd1213%^%r^eJDBSHALFDHLFVSHVSFVS
+	--------------------------d74496d66958873e--
+	 
+  
+If choice 2 is selected of decrypting all values then both the value of 'person' and 'file.txt' will be decrypted but in option 3, you will to write the text which you have to decrypt - 'akdbsakdbsj=sadaln'. But this will cause a problem at encryption end if fuzzing occurs.  
+Hence, implementation for choice 3 in multipart is not complete.    
+  
+*  If we have content types as plain or html, currently we can only encrypt/decrypt entire body.  
+The functionality to decrypt/encrypt specific parts of the body is not implemented.  

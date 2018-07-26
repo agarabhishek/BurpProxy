@@ -1131,7 +1131,7 @@ class ProxyRequestHandler(BaseHTTPRequestHandler):
                 return decrypt_multipart_form(parameters,re_body_text)
 
             if con_type==0 or con_type==2:
-                print("We have not yet identified how to identify encrypted parameters in these content types")
+                print("We have not yet identified how to identify encrypted parameters in this content types")
                 return re_body
         else:
             sys.exit("Please enter valid mxen")
@@ -1147,7 +1147,7 @@ class ProxyRequestHandler(BaseHTTPRequestHandler):
 def test(HandlerClass=ProxyRequestHandler, ServerClass=ThreadingHTTPServer, protocol="HTTP/1.1"):
     port = sys.argv[1]
     port=int(port)
-    server_address = ('192.168.0.194', port)
+    server_address = ('192.168.0.217', port)
     HandlerClass.protocol_version = protocol
     httpd = ServerClass(server_address, HandlerClass)
     sa = httpd.socket.getsockname()
