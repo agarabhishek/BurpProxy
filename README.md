@@ -97,12 +97,12 @@ Currently Supported Encryption Methods:
 
 Currently Supported Encoding Schemes:
 
-	1) Base64 `Base64`
-	2) URL Encoding `URL`
-	3) AsciiHex `AsciiHex`
-	4) Binary `Bin`
-	4) Octal `Oct`
-	4) Hexadecimal `Hex` 
+	1) Base64 - Base64
+	2) URL - URL Encoding
+	3) AsciiHex - AscII Hexadecimal
+	4) Bin - Binary
+	4) Oct - Octal
+	4) Hex - Hexadecimal 
 
 *File is EncDec.py*
 
@@ -135,14 +135,13 @@ Inside the file,corresponsing to each mode (ECB/CBC etc) there are two functions
 These functions return the plain text/cipher text.  
 Example of a function is given below:    
 
-`#Encryption for AES-CBC  
-def aes_ecb_enc(key,plain_txt,mode):   
-	global blocksize  
-	encryption_suite=AES.new(key,AES.MODE_EBC)  
-	plain_txt_pad=appendPadding(plain_txt,blocksize=blocksize,mode=mode)  
-	cph_txt=encryption_suite.encrypt(plain_txt_pad)  
-	return cph_txt  
-`     
+	#Encryption for AES-CBC  
+	def aes_ecb_enc(key,plain_txt,mode):   
+		global blocksize  
+		encryption_suite=AES.new(key,AES.MODE_EBC)  
+		plain_txt_pad=appendPadding(plain_txt,blocksize=blocksize,mode=mode)  
+		cph_txt=encryption_suite.encrypt(plain_txt_pad)  
+		return cph_txt       
   
 Arguments are - key,plain text,padding mode, iv, segment_size (only for CFB)  
   
@@ -158,8 +157,8 @@ We have tried to cover all possible encodings. To add a new scheme, you need to 
 These functions return the encoded/decoded text.   
 Example of a function is given below:  
 
-`def Base64Dec(msg):  
-	return base64.b64decode(msg)`  
+	def Base64Dec(msg):  
+		return base64.b64decode(msg)
 
 Argument is simply the text to be encoded/decoded.  
 
@@ -175,16 +174,16 @@ We have tried to cover all possible paddings. To add a new padding scheme, you n
 These functions return the modified text.  
 Example of a function is given below:  
 
-`def removeISOPadding(str, blocksize=AES_blocksize):   
-    pad_len = 0        
-    for char in str[::-1]: # str[::-1] reverses string  
-        if char == '\0':  
-            pad_len += 1  
-        else:  
-            break  
-    pad_len += 1  
-    str = str[:-pad_len]  
-   	return str`      
+	def removeISOPadding(str, blocksize=AES_blocksize):   
+	    pad_len = 0        
+	    for char in str[::-1]: # str[::-1] reverses string  
+	        if char == '\0':  
+	            pad_len += 1  
+	        else:  
+	            break  
+	    pad_len += 1  
+	    str = str[:-pad_len]  
+	   	return str      
 
 Arguments are the text to be modified and blocksize.
 
