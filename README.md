@@ -208,17 +208,17 @@ These files should be ideally flushed every time a new request is sent.
 
 *  *Note: In multipart/form-data, suppose we have the following body-*  
 
-	--------------------------d74496d66958873e
-	Content-Disposition: form-data; name="person"  
-	 
-	akdbsakdbsj=sadaln
-	--------------------------d74496d66958873e
-	Content-Disposition: form-data; name="secret"; filename="file.txt"
-	Content-Type: text/plain
-	 
-	sdakjldnd1213%^%r^eJDBSHALFDHLFVSHVSFVS
-	--------------------------d74496d66958873e--
-	 
+		`--------------------------d74496d66958873e`
+		`Content-Disposition: form-data; name="person"`    
+		``    
+		`akdbsakdbsj=sadaln`
+		`--------------------------d74496d66958873e`
+		`Content-Disposition: form-data; name="secret"; filename="file.txt"`
+		`Content-Type: text/plain`
+		``  
+		`sdakjldnd1213%^%r^eJDBSHALFDHLFVSHVSFVS`
+		`--------------------------d74496d66958873e--`
+ 
 	If choice 2 is selected of decrypting all values then both the value of 'person' and 'file.txt' will be decrypted but in option 3, you will to write the text which you have to decrypt - 'akdbsakdbsj=sadaln'. But this will cause a problem at encryption end if fuzzing occurs.  
 	Hence, implementation for choice 3 in multipart is not complete.    
   
