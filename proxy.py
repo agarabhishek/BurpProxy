@@ -1225,10 +1225,10 @@ if __name__ == '__main__':
         dic['keyf'] = keyf
         cmode = sys.argv [4]
         dic['cmode'] = cmode
-        choose = raw_input ("Want to enter IV(y/n)")
+        choose = raw_input ("Want to enter IV(y/n)") # If IV is not entered, it is assumed that IV is not hard-cored and is sent with each ciphertext. Hence, IV is extracted from the ciphertext.
         ivf = raw_input("Enter IV") if cmode != 'ECB' and choose == 'y' else None
         dic['ivf'] = ivf
-        ivs = str(sys.argv[9]) if cmode!='ECB' else None #raw_input("Positin of IV: Starting(1) or Ending(2): ")
+        ivs = str(sys.argv[9]) if cmode!='ECB' else None #raw_input("Positin of IV, the position at which IV is appended with cipher text: At Starting(1),Ending(2) or Not appended(3)")
         dic['ivs'] = ivs
         segment_size = str(sys.argv[11]) if cmode == 'CFB' else None
         dic['segment_size'] = segment_size

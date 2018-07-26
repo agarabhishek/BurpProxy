@@ -55,6 +55,8 @@ Example: `python proxy.py 6666 AES 441538f57b510c0512f594c213cc523c CBC Base64 3
   
 `python proxy.py [Port]`  
 
+*Once you start P1, you don't need to input the command line arguments again while starting P2 as the arguments are stored by P1 in a file and P2 reads from it.*     
+
 Example: `python proxy.py 5555`
 
  
@@ -74,10 +76,14 @@ Choice-
 
 
 'e' if this script is P2, 'd' is this is P1  
+	e stands for encryption and d stands for decryption. So if you enter 'e' first, then the script is assumed to be P2 as it will do encryption first. If you enter 'd' then the script becomes P1 as it will do decryption first.  
 
 Padding Mode - CMS/Bit/ISO etc  
 
-Position of IV : 1 for Starting, 2 for Ending  
+Position of IV : 1 for Starting, 2 for Ending , 3 if IV is not appended  
+	This signifies the position at which IV is appended before cipher text is sent from client to server or vice-versa.      
+	If for some case, the IV is not randomly generated but is hardcoded and same on both client and server then on the next prompt "Want to Enter IV (y/n)?". Enter "y" and then input the IV.   
+	In this case, IV is not sent with request/response.     
 
 Log Level- 0/1/2. Proxy 1 writes to p1.txt and Proxy 2 writes to p2.txt  
 
