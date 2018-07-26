@@ -87,7 +87,7 @@ Segment Size= Only in CFB mode, must be multiple of 8. If left blank, 8 will be 
 
 ##**V) Current Support**  
 
-Currently Supported Content Types:
+**Currently Supported Content Types:**
 
 *In content types which have key-value pairs, we can encrypt-decrypt all values or multiple values.*
 
@@ -100,7 +100,7 @@ Currently Supported Content Types:
         7) multipart/form-data: Has Key-Value pairs.
         8) application/xhtml+xmls: Has Key-Value pairs.
 
-Currently Supported Encryption Methods:
+**Currently Supported Encryption Methods:**
 
 	1) AES - Advanced Encryption Standard
 	2) DES - Data Encryption Standard
@@ -108,7 +108,7 @@ Currently Supported Encryption Methods:
 
 *Files are named as- enc_dec_[method].py Example- enc_dec_aes.py,enc_dec_des.py*
 
-Currently Supported Encoding Schemes:
+**Currently Supported Encoding Schemes:**
 
 	1) Base64 - Base64
 	2) URL - URL Encoding
@@ -119,7 +119,7 @@ Currently Supported Encoding Schemes:
 
 *File is EncDec.py*
 
-Currently Supported Padding Schemes:
+**Currently Supported Padding Schemes:**
 
 	1) BitPadding - Pad with 0x80 (10000000) followed by zero (null) bytes.
 	2) CMS - Also called PKCS#5/PKCS#7. Pad with bytes all of the same value as the number of padding.
