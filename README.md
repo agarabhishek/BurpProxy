@@ -127,21 +127,22 @@ Below are some guidelines to add new encryption,padding or encoding modules-
 
 Each encryption scheme has its own file inside Modules folder. 
 So,create a new file as enc_dec_[scheme].py  
-Inside the file,corresponsing to each mode (ECB/CBC etc) there are two functions named as follows-    
+Inside the file,corresponsing to each mode (ECB/CBC etc) there are two functions named as follows-  
+
 `def [scheme]_[mode]_[enc](arguments)` for encryption   
 `def [scheme]_[mode]_[dec](arguments)` for decryption  
 
 These functions return the plain text/cipher text.  
 Example of a function is given below:    
 
-`#Encryption for AES-CBC
-def aes_ecb_enc(key,plain_txt,mode):
-	global blocksize
-	encryption_suite=AES.new(key,AES.MODE_EBC)
-	plain_txt_pad=appendPadding(plain_txt,blocksize=blocksize,mode=mode)
-	cph_txt=encryption_suite.encrypt(plain_txt_pad)
-	return cph_txt
-`   
+`#Encryption for AES-CBC  
+def aes_ecb_enc(key,plain_txt,mode):   
+	global blocksize  
+	encryption_suite=AES.new(key,AES.MODE_EBC)  
+	plain_txt_pad=appendPadding(plain_txt,blocksize=blocksize,mode=mode)  
+	cph_txt=encryption_suite.encrypt(plain_txt_pad)  
+	return cph_txt  
+`     
   
 Arguments are - key,plain text,padding mode, iv, segment_size (only for CFB)  
   
@@ -151,14 +152,14 @@ Arguments are - key,plain text,padding mode, iv, segment_size (only for CFB)
 There is a single file for Encoding schemes- EncDec.py inside Modules Folder.  
 We have tried to cover all possible encodings. To add a new scheme, you need to simply add two functions as follows-  
 
-`def [scheme]Enc(argument)` for encoding
-`def [scheme]Dec(argument)` for decoding
+`def [scheme]Enc(argument)` for encoding  
+`def [scheme]Dec(argument)` for decoding  
 
 These functions return the encoded/decoded text.   
 Example of a function is given below:  
 
-`def Base64Dec(msg):
-	return base64.b64decode(msg)`
+`def Base64Dec(msg):  
+	return base64.b64decode(msg)`  
 
 Argument is simply the text to be encoded/decoded.  
 
@@ -168,22 +169,22 @@ Argument is simply the text to be encoded/decoded.
 There is a single file for Padding schemes- Padding.py inside Padding.tar.gz.
 We have tried to cover all possible paddings. To add a new padding scheme, you need to simply add two functions as follows-  
 
-`def append[scheme]Padding(arguments)`  for appending
-`def remove[scheme]Padding(arguments)`  for removing  
+`def append[scheme]Padding(arguments)`  for appending  
+`def remove[scheme]Padding(arguments)`  for removing    
 
-These functions return the modified text.
+These functions return the modified text.  
 Example of a function is given below:  
 
-`def removeISOPadding(str, blocksize=AES_blocksize):
-    pad_len = 0    
-    for char in str[::-1]: # str[::-1] reverses string
-        if char == '\0':
-            pad_len += 1
-        else:
-            break
-    pad_len += 1
-    str = str[:-pad_len]
-   	return str`  
+`def removeISOPadding(str, blocksize=AES_blocksize):   
+    pad_len = 0        
+    for char in str[::-1]: # str[::-1] reverses string  
+        if char == '\0':  
+            pad_len += 1  
+        else:  
+            break  
+    pad_len += 1  
+    str = str[:-pad_len]  
+   	return str`      
 
 Arguments are the text to be modified and blocksize.
 
