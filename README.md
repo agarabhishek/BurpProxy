@@ -219,9 +219,8 @@ These files should be ideally flushed every time a new request is sent.
 	sdakjldnd1213%^%r^eJDBSHALFDHLFVSHVSFVS
 	--------------------------d74496d66958873e--
 	 
-  
-If choice 2 is selected of decrypting all values then both the value of 'person' and 'file.txt' will be decrypted but in option 3, you will to write the text which you have to decrypt - 'akdbsakdbsj=sadaln'. But this will cause a problem at encryption end if fuzzing occurs.  
-Hence, implementation for choice 3 in multipart is not complete.    
+	If choice 2 is selected of decrypting all values then both the value of 'person' and 'file.txt' will be decrypted but in option 3, you will to write the text which you have to decrypt - 'akdbsakdbsj=sadaln'. But this will cause a problem at encryption end if fuzzing occurs.  
+	Hence, implementation for choice 3 in multipart is not complete.    
   
 *  If we have content types as plain or html, currently we can only encrypt/decrypt entire body.  
 The functionality to decrypt/encrypt specific parts of the body is not implemented.  
