@@ -34,7 +34,7 @@ Run the following commands
   
 `./setup.sh`   
 `pip install ./Padding.tar.gz`  
-`pip -r requirements.txt`  
+`pip install -r requirements.txt`  
 
 Note- Python 2.7 required.
 
