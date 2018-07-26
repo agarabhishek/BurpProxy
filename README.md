@@ -127,9 +127,9 @@ Below are some guidelines to add new encryption,padding or encoding modules-
 
 Each encryption scheme has its own file inside Modules folder.
 So,create a new file as enc_dec_[scheme].py
-Corresponsing to each mode (ECB/CBC etc) there are two functions (encryption and decryption) named as follows
-[scheme]\_[mode]\_[enc](arguments) for encryption
-[scheme]\_[mode]\_[dec](arguments) for decryption
+Corresponsing to each mode (ECB/CBC etc) there are two functions (encryption and decryption) named as follows  
+[scheme]\_[mode]\_[enc]\(arguments) for encryption   
+[scheme]\_[mode]\_[dec]\(arguments) for decryption  
 
 
 
