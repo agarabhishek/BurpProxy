@@ -49,7 +49,7 @@ Proxy Instance 2- P2
   
 `python proxy.py [Port] [Cipher Method] [Key] [Cipher Mode] [Encoding Mode] [Choice] [e/d] [Padding Mode] [Position of IV] [Log Level] [Segment Size]`  
   
-Example: `python proxy.py 6666 AES 441538f57b510c0512f594c213cc523c CBC Base64 3 d CMS 1 2`  
+Example: `python proxy.py 6666 AES sdfsds5453dfsff CBC Base64 3 d CMS 1 2`  
   
 **_Start P2_**  
   
