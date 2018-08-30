@@ -1,3 +1,5 @@
+[Update] Developed originally at Lucideus.Commits under alias Abhishek.
+
 **I) Introduction**
 
 This proxy aims to work as a Burp Extender. It is used for Encrypting/Decrypting Traffic.
