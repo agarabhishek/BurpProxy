@@ -1,18 +1,18 @@
-#**Python Proxy**
+**Python Proxy**
 
-##**I) Introduction**
+**I) Introduction**
 
 This proxy aims to work as a Burp Extender. It is used for Encrypting/Decrypting Traffic.
 Many clients send and recieve encrypted traffic to and from server.
 Our proxy aims to reduce the manual work of decrypting and encrypting the traffic required at Burp. 
 
-##**II)Typical Usage**
-*
-C: Client  
-P: Proxy  
-B: Burp  
-S: Server  
-*
+**II)Typical Usage**<br/>
+
+* C: Client  
+* P: Proxy  
+* B: Burp  
+* S: Server  
+
   
 *Without Proxy:*  
 
@@ -28,7 +28,7 @@ S: Server
 
 Hence, two instances of same file will run.
 
-##**III) Setup**
+**III) Setup**
 
 Run the following commands  
   
@@ -38,7 +38,7 @@ Run the following commands
 
 Note- Python 2.7 required.
 
-##**IV) Usage**
+**IV) Usage**
 
 Proxy Instance 1- P1  
 Proxy Instance 2- P2  
@@ -60,7 +60,7 @@ Example: `python proxy.py 6666 AES sdfsds5453dfsff CBC Base64 3 d CMS 1 2`
 Example: `python proxy.py 5555`
 
  
-######*Arguments*  
+*Arguments*  
 
 Cipher Method - AES/DES/DES3 etc.  
 
@@ -93,7 +93,7 @@ Log Level- 0/1/2. Proxy 1 writes to p1.txt and Proxy 2 writes to p2.txt
 
 Segment Size= Only in CFB mode, must be multiple of 8. If left blank, 8 will be taken by default.
 
-##**V) Current Support**  
+**V) Current Support**  
 
 **Currently Supported Content Types:**
 
@@ -140,7 +140,7 @@ Segment Size= Only in CFB mode, must be multiple of 8. If left blank, 8 will be 
 *See README in Padding.tar.gz for more details*
 
 
-##**VI) Further Changes**
+**VI) Further Changes**
 
 Below are some guidelines to add new encryption,padding or encoding modules-
 
@@ -209,7 +209,7 @@ Example of a function is given below:
 Arguments are the text to be modified and blocksize.
 
 
-##**VII) Extra**
+**VII) Extra**
 
 * flush.py file can be used to delete temporary files which will be created while running the scripts. 
 These files should be ideally flushed every time a new request is sent.
@@ -230,5 +230,4 @@ These files should be ideally flushed every time a new request is sent.
 	If choice 2 is selected of decrypting all values then both the value of 'person' and 'file.txt' will be decrypted but in option 3, you will to write the text which you have to decrypt - 'akdbsakdbsj=sadaln'. But this will cause a problem at encryption end if fuzzing occurs.  
 	Hence, implementation for choice 3 in multipart is not complete.    
   
-*  If we have content types as plain or html, currently we can only encrypt/decrypt entire body.  
-The functionality to decrypt/encrypt specific parts of the body is not implemented.  
+*  If we have content types as plain or html, currently we can only encrypt/decrypt entire body.  The functionality to decrypt/encrypt specific parts of the body is not implemented.
