@@ -1,4 +1,4 @@
-[Update] Developed originally at Lucideus.Commits under alias Abhishek.
+[Update] Developed originally at Lucideus. Commits under alias of Abhishek.
 
 **I) Introduction**
 
